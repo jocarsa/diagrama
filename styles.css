@@ -1,0 +1,339 @@
+:root {
+    /* Identidad monocromática jocarsa | dia */
+    --dia-bg: #f3f4f6;
+    --dia-panel: #ffffff;
+    --dia-border-subtle: #d1d5db;
+    --dia-border-strong: #111827;
+
+    --dia-primary: #111827;      /* casi negro */
+    --dia-primary-soft: #e5e7eb;
+
+    --dia-text-primary: #111827;
+    --dia-text-muted: #6b7280;
+
+    --dia-shape-bg: #ffffff;
+    --dia-shape-border-rect: #111827;
+    --dia-shape-border-pill: #111827;
+    --dia-shape-border-circle: #111827;
+
+    --dia-shadow-soft: 0 14px 35px rgba(15, 23, 42, 0.14);
+}
+
+/* Reset básico */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--dia-text-primary);
+    background:
+        radial-gradient(circle at top left, #e5e7eb 0, transparent 55%),
+        radial-gradient(circle at bottom right, #d1d5db 0, transparent 50%),
+        linear-gradient(135deg, #f3f4f6, #f9fafb);
+}
+
+/* Barra lateral */
+
+.toolbar {
+    width: 230px;
+    padding: 18px 16px;
+    border-right: 1px solid var(--dia-border-subtle);
+    background: var(--dia-panel);
+    box-shadow: 8px 0 30px rgba(15, 23, 42, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Branding jocarsa | dia */
+
+.brand {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--dia-border-subtle);
+}
+
+.brand-main {
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 0.92rem;
+    color: var(--dia-text-primary);
+}
+
+.brand-separator {
+    color: var(--dia-text-muted);
+}
+
+.brand-variant {
+    font-size: 0.9rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dia-text-muted);
+}
+
+.toolbar-section-label {
+    margin-top: 8px;
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--dia-text-muted);
+}
+
+/* Herramientas */
+
+.tool {
+    padding: 8px 10px;
+    margin: 2px 0;
+    background: #f9fafb;
+    border-radius: 999px;
+    border: 1px solid var(--dia-border-subtle);
+    cursor: grab;
+    text-align: left;
+    font-size: 0.85rem;
+    color: var(--dia-text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition:
+        background 0.12s ease,
+        border-color 0.12s ease,
+        box-shadow 0.12s ease,
+        transform 0.08s ease;
+}
+
+.tool::after {
+    content: "⋯";
+    font-size: 0.78rem;
+    color: var(--dia-text-muted);
+}
+
+.tool[data-shape="arrow"],
+.tool[data-shape="bidirectional"] {
+    cursor: pointer;
+    background: #f3f4f6;
+}
+
+.tool:hover {
+    background: #ffffff;
+    border-color: var(--dia-border-strong);
+    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.1);
+    transform: translateY(-1px);
+}
+
+.tool.active {
+    background: #ffffff;
+    border-color: var(--dia-border-strong);
+    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.22);
+}
+
+/* Contenedor del lienzo */
+
+.stage-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 18px 18px 12px;
+}
+
+.stage-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--dia-border-subtle);
+    background: #ffffff;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+}
+
+.stage-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.stage-subtitle {
+    font-size: 0.75rem;
+    color: var(--dia-text-muted);
+}
+
+/* Lienzo */
+
+.stage {
+    flex: 1;
+    border-radius: 16px;
+    border: 1px solid var(--dia-border-subtle);
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--dia-shadow-soft);
+    background-color: #f9fafb;
+    background-image:
+        linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+        linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+    background-size: 28px 28px;
+}
+
+/* Formas */
+
+.shape {
+    position: absolute;
+    cursor: move;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dia-text-primary);
+    font-size: 2rem; /* texto más grande */
+    font-weight:bold;
+    padding: 4px 10px;
+    background: var(--dia-shape-bg);
+    box-shadow:
+        0 10px 25px rgba(15, 23, 42, 0.12),
+        0 0 0 1px rgba(209, 213, 219, 0.9);
+}
+
+.rectangle {
+    width: 180px;
+    height: 70px;
+    border-radius: 14px;
+    border: 2px solid var(--dia-shape-border-rect);
+}
+
+.pill {
+    width: 200px;
+    height: 60px;
+    border-radius: 999px;
+    border: 2px solid var(--dia-shape-border-pill);
+}
+
+.circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 2px solid var(--dia-shape-border-circle);
+}
+
+.shape.selected {
+    outline: 2px dashed var(--dia-border-strong);
+    outline-offset: 4px;
+}
+
+/* Flechas */
+
+.arrow {
+    position: absolute;
+    height: 2px;
+    background: var(--dia-primary);
+    transform-origin: 0 50%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Punta para flecha simple (extremo derecho) */
+.arrow::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 9px solid var(--dia-primary);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+}
+
+/* Segunda punta para flecha bidireccional (extremo izquierdo) */
+.arrow.arrow-double::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-right: 9px solid var(--dia-primary);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+}
+
+/* Botones */
+
+button {
+    padding: 8px 10px;
+    margin-top: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--dia-border-subtle);
+    background: #f9fafb;
+    color: var(--dia-text-primary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    text-align: left;
+    transition:
+        background 0.12s ease,
+        border-color 0.12s ease,
+        transform 0.08s ease,
+        box-shadow 0.12s ease;
+}
+
+button.secondary {
+    background: #ffffff;
+}
+
+button:hover {
+    border-color: var(--dia-border-strong);
+    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.16);
+    transform: translateY(-1px);
+}
+.stage {
+    position: relative;
+    overflow: hidden;
+    background: #f7f7f7;
+    border-radius: 12px;
+    cursor: grab;
+}
+
+/* Contenedor interno que se pan/zoomea */
+.stage-inner {
+    position: relative;
+    width: 5000px;   /* "mundo" grande para moverse */
+    height: 5000px;
+    transform-origin: 0 0;
+}
+
+/* Flechas y formas deben ser absolutely-positioned dentro de stage-inner */
+.shape {
+    position: absolute;
+    cursor: move;
+    /* resto de estilos que ya tuvieras (tamaño, colores, etc.) */
+}
+
+.arrow {
+    position: absolute;
+    height: 2px;
+    background: #333;
+    transform-origin: 0 50%;
+}
+
+/* Resaltado de selección para eliminar */
+.shape.selected,
+.arrow.selected {
+    outline: 2px solid #007bff;
+}
+
+/* Mientras se hace pan */
+.stage.panning {
+    cursor: grabbing;
+}
+
