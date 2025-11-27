@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadInput = document.getElementById('uploadInput');
     const exportSvgBtn = document.getElementById('exportSvgBtn');
     const exportHtmlBtn = document.getElementById('exportHtmlBtn');
+    const exportSqlBtn = document.getElementById('exportSqlBtn'); // NUEVO
     const clearBtn = document.getElementById('clearBtn');
 
     // Contenedor interno para poder aplicar transform (pan/zoom)
@@ -705,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
         entidad.id = generarIdForma();
         entidad.classList.add('shape', 'entity');
         entidad.style.left = `${worldX - 110}px`;
-        entidad.style.top = `${worldY - 50}px`;   // <-- corregido: worldY, no worldX
+        entidad.style.top = `${worldY - 50}px`;   // corregido: worldY
 
         entidad.innerHTML = `
             <div class="entity-header" contenteditable="true">Entidad</div>
@@ -1580,6 +1581,257 @@ body {
         const htmlContent = htmlParts.join('\n');
         descargarBlob(htmlContent, 'diagrama.html', 'text/html');
     });
+
+    /* ===== Exportar SQL (ER → tablas) ===== */
+
+    exportSqlBtn.addEventListener('click', () => {
+        const sql = generarSqlDesdeDiagrama();
+        if (!sql) {
+            alert('No hay entidades ER para exportar.');
+            return;
+        }
+        descargarBlob(sql, 'diagrama.sql', 'text/sql');
+    });
+
+    function generarSqlDesdeDiagrama() {
+        const entityEls = Array.from(stageInner.querySelectorAll('.shape.entity'));
+        if (!entityEls.length) return '';
+
+        // Utilidades internas
+        function sanitizeName(raw) {
+            const base = (raw || '').trim().toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[^a-z0-9_]/g, '');
+            return base || 'tabla';
+        }
+
+        function getPropertyInfoFromNode(node) {
+            if (!node) return null;
+            const propEl = node.closest('.entity-property');
+            if (!propEl) return null;
+            const entityEl = node.closest('.shape.entity');
+            if (!entityEl) return null;
+
+            const nameEl = propEl.querySelector('.property-name');
+            const rawName = (nameEl ? nameEl.textContent : '').trim() || 'atributo';
+            const colName = sanitizeName(rawName);
+
+            return {
+                entityEl,
+                propEl,
+                rawName,
+                colName
+            };
+        }
+
+        // Recoger entidades/columnas
+        const entities = {};
+        const tableOrder = [];
+
+        entityEls.forEach(entEl => {
+            const header = entEl.querySelector('.entity-header');
+            const rawTableName = (header ? header.textContent : '').trim() || 'entidad';
+            const tableName = sanitizeName(rawTableName);
+
+            const columns = [];
+            const pkColumns = [];
+            const foreignKeys = [];
+
+            const propRows = entEl.querySelectorAll('.entity-property .property-name');
+
+            propRows.forEach(nameEl => {
+                const rawName = (nameEl.textContent || '').trim() || 'atributo';
+                const colName = sanitizeName(rawName);
+                const lc = colName.toLowerCase();
+
+                let type = 'VARCHAR(255)';
+                let isPK = false;
+
+                if (lc === 'id') {
+                    type = 'INT';
+                    isPK = true;
+                } else if (lc.endsWith('_id')) {
+                    type = 'INT';
+                }
+
+                columns.push({ name: colName, type, isPrimaryKey: isPK });
+
+                if (isPK) {
+                    pkColumns.push(colName);
+                }
+            });
+
+            entities[entEl.id] = {
+                id: entEl.id,
+                domEl: entEl,
+                name: tableName,
+                columns,
+                pkColumns,
+                foreignKeys
+            };
+            tableOrder.push(entEl.id);
+        });
+
+        // Analizar flechas (FK + generalización/especialización)
+        const isaRelations = []; // { parentId, childId }
+
+        flechas.forEach(f => {
+            const fromEntityEl = f.shapeInicio.closest('.shape.entity');
+            const toEntityEl = f.shapeFin.closest('.shape.entity');
+
+            if (!fromEntityEl || !toEntityEl || fromEntityEl === toEntityEl) return;
+            if (!entities[fromEntityEl.id] || !entities[toEntityEl.id]) return;
+
+            const fromProp = getPropertyInfoFromNode(f.formaInicio);
+            const toProp = getPropertyInfoFromNode(f.formaFin);
+
+            // Caso 1: entidad ↔ entidad sin puertos ⇒ ISA
+            if (!fromProp && !toProp) {
+                isaRelations.push({
+                    parentId: fromEntityEl.id,
+                    childId: toEntityEl.id
+                });
+                return;
+            }
+
+            // Caso 2: FK entre tablas usando atributos
+            let child = null;
+            let parent = null;
+            let fkColumn = null;
+
+            if (fromProp && !toProp) {
+                child = entities[fromProp.entityEl.id];
+                parent = entities[toEntityEl.id];
+                fkColumn = fromProp.colName;
+            } else if (!fromProp && toProp) {
+                child = entities[toProp.entityEl.id];
+                parent = entities[fromEntityEl.id];
+                fkColumn = toProp.colName;
+            } else if (fromProp && toProp) {
+                const fromLooksFk = fromProp.colName.toLowerCase().endsWith('_id');
+                const toLooksFk = toProp.colName.toLowerCase().endsWith('_id');
+
+                if (fromLooksFk && !toLooksFk) {
+                    child = entities[fromProp.entityEl.id];
+                    parent = entities[toProp.entityEl.id];
+                    fkColumn = fromProp.colName;
+                } else if (!fromLooksFk && toLooksFk) {
+                    child = entities[toProp.entityEl.id];
+                    parent = entities[fromProp.entityEl.id];
+                    fkColumn = toProp.colName;
+                } else {
+                    child = entities[toProp.entityEl.id];
+                    parent = entities[fromProp.entityEl.id];
+                    fkColumn = toProp.colName;
+                }
+            }
+
+            if (!child || !parent || child === parent) return;
+
+            const parentPk = parent.pkColumns[0] || 'id';
+
+            // Asegurar PK en parent
+            let parentPkCol = parent.columns.find(c => c.name === parentPk);
+            if (!parentPkCol) {
+                parentPkCol = { name: parentPk, type: 'INT', isPrimaryKey: true };
+                parent.columns.push(parentPkCol);
+                if (!parent.pkColumns.includes(parentPk)) {
+                    parent.pkColumns.push(parentPk);
+                }
+            }
+
+            // Asegurar columna FK en hijo
+            let fkColDef = child.columns.find(c => c.name === fkColumn);
+            if (!fkColDef) {
+                fkColDef = {
+                    name: fkColumn,
+                    type: parentPkCol.type,
+                    isPrimaryKey: false
+                };
+                child.columns.push(fkColDef);
+            }
+
+            child.foreignKeys.push({
+                column: fkColumn,
+                referencesTable: parent.name,
+                referencesColumn: parentPkCol.name
+            });
+        });
+
+        // Generalización / especialización (ISA)
+        isaRelations.forEach(rel => {
+            const parent = entities[rel.parentId];
+            const child = entities[rel.childId];
+            if (!parent || !child) return;
+
+            const parentPk = parent.pkColumns[0] || 'id';
+
+            let parentPkCol = parent.columns.find(c => c.name === parentPk);
+            if (!parentPkCol) {
+                parentPkCol = { name: parentPk, type: 'INT', isPrimaryKey: true };
+                parent.columns.push(parentPkCol);
+                if (!parent.pkColumns.includes(parentPk)) {
+                    parent.pkColumns.push(parentPk);
+                }
+            }
+
+            let childPkCol = child.columns.find(c => c.name === parentPk);
+            if (!childPkCol) {
+                childPkCol = {
+                    name: parentPk,
+                    type: parentPkCol.type,
+                    isPrimaryKey: true
+                };
+                child.columns.unshift(childPkCol);
+            }
+            if (!child.pkColumns.includes(parentPk)) {
+                child.pkColumns.push(parentPk);
+            }
+
+            child.foreignKeys.push({
+                column: parentPk,
+                referencesTable: parent.name,
+                referencesColumn: parentPkCol.name
+            });
+        });
+
+        // Generar SQL
+        const lines = [];
+
+        tableOrder.forEach(id => {
+            const ent = entities[id];
+            if (!ent) return;
+
+            const colLines = [];
+            const constraintLines = [];
+
+            ent.columns.forEach(col => {
+                let def = `  ${col.name} ${col.type}`;
+                if (col.isPrimaryKey && ent.pkColumns.length === 1 && ent.pkColumns[0] === col.name) {
+                    def += ' PRIMARY KEY';
+                }
+                colLines.push(def);
+            });
+
+            if (ent.pkColumns.length > 1) {
+                constraintLines.push(`  PRIMARY KEY (${ent.pkColumns.join(', ')})`);
+            }
+
+            ent.foreignKeys.forEach((fk, idx) => {
+                const cname = `fk_${ent.name}_${idx + 1}`;
+                constraintLines.push(
+                    `  CONSTRAINT ${cname} FOREIGN KEY (${fk.column}) REFERENCES ${fk.referencesTable}(${fk.referencesColumn})`
+                );
+            });
+
+            const tableLines = colLines.concat(constraintLines);
+            lines.push(
+                `CREATE TABLE ${ent.name} (\n${tableLines.join(',\n')}\n);`
+            );
+        });
+
+        return lines.join('\n\n');
+    }
 
     /* ===== Utilidades generales ===== */
 
