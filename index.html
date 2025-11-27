@@ -18,15 +18,22 @@
         <div class="tool" draggable="true" data-shape="rectangle">Rectángulo</div>
         <div class="tool" draggable="true" data-shape="pill">Píldora</div>
         <div class="tool" draggable="true" data-shape="circle">Círculo</div>
+        <div class="tool" draggable="true" data-shape="db">Base de datos</div>
+        <div class="tool" draggable="true" data-shape="entity">Entidad (ER)</div>
 
         <div class="toolbar-section-label">Conexiones</div>
         <div class="tool" data-shape="arrow">Flecha →</div>
         <div class="tool" data-shape="bidirectional">↔ Bidireccional</div>
+        <div class="tool" data-shape="ortho">Orto →</div>
+        <div class="tool" data-shape="ortho-bidirectional">Orto ↔</div>
 
         <div class="toolbar-section-label">Diagrama</div>
-        <button id="saveBtn">Guardar diagrama</button>
-        <button id="uploadBtn" class="secondary">Cargar diagrama</button>
+        <button id="saveBtn">Guardar JSON</button>
+        <button id="uploadBtn" class="secondary">Cargar JSON</button>
         <input type="file" id="uploadInput" accept=".json" style="display: none;">
+        <button id="exportSvgBtn" class="secondary">Exportar SVG</button>
+        <button id="exportHtmlBtn" class="secondary">Exportar HTML/CSS</button>
+        <button id="clearBtn" class="secondary">Limpiar lienzo</button>
     </div>
 
     <div class="stage-wrapper">

@@ -1,339 +1,406 @@
-:root {
-    /* Identidad monocromática jocarsa | dia */
-    --dia-bg: #f3f4f6;
-    --dia-panel: #ffffff;
-    --dia-border-subtle: #d1d5db;
-    --dia-border-strong: #111827;
-
-    --dia-primary: #111827;      /* casi negro */
-    --dia-primary-soft: #e5e7eb;
-
-    --dia-text-primary: #111827;
-    --dia-text-muted: #6b7280;
-
-    --dia-shape-bg: #ffffff;
-    --dia-shape-border-rect: #111827;
-    --dia-shape-border-pill: #111827;
-    --dia-shape-border-circle: #111827;
-
-    --dia-shadow-soft: 0 14px 35px rgba(15, 23, 42, 0.14);
-}
-
-/* Reset básico */
 *,
 *::before,
 *::after {
     box-sizing: border-box;
 }
 
-body {
+html, body {
     margin: 0;
-    height: 100vh;
-    display: flex;
+    padding: 0;
+    height: 100%;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: var(--dia-text-primary);
-    background:
-        radial-gradient(circle at top left, #e5e7eb 0, transparent 55%),
-        radial-gradient(circle at bottom right, #d1d5db 0, transparent 50%),
-        linear-gradient(135deg, #f3f4f6, #f9fafb);
+    background: #f3f3f7;
+    color: #222;
 }
 
-/* Barra lateral */
+body {
+    display: flex;
+}
+
+/* ===== TOOLBAR ===== */
 
 .toolbar {
-    width: 230px;
-    padding: 18px 16px;
-    border-right: 1px solid var(--dia-border-subtle);
-    background: var(--dia-panel);
-    box-shadow: 8px 0 30px rgba(15, 23, 42, 0.06);
+    width: 220px;
+    background: #1f2933;
+    color: #f9fafb;
+    padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
+    border-right: 1px solid #111827;
 }
 
-/* Branding jocarsa | dia */
-
 .brand {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    margin-bottom: 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--dia-border-subtle);
+    font-weight: 600;
+    margin-bottom: 8px;
 }
 
 .brand-main {
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-size: 0.92rem;
-    color: var(--dia-text-primary);
+    color: #22d3ee;
 }
 
 .brand-separator {
-    color: var(--dia-text-muted);
+    margin: 0 2px;
+    opacity: 0.6;
 }
 
 .brand-variant {
-    font-size: 0.9rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--dia-text-muted);
+    color: #e5e7eb;
 }
 
 .toolbar-section-label {
-    margin-top: 8px;
-    margin-bottom: 4px;
-    font-size: 0.72rem;
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--dia-text-muted);
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    margin-top: 8px;
+    margin-bottom: 2px;
 }
-
-/* Herramientas */
 
 .tool {
-    padding: 8px 10px;
-    margin: 2px 0;
-    background: #f9fafb;
-    border-radius: 999px;
-    border: 1px solid var(--dia-border-subtle);
+    font-size: 13px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: #111827;
+    border: 1px solid transparent;
     cursor: grab;
-    text-align: left;
-    font-size: 0.85rem;
-    color: var(--dia-text-primary);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    transition:
-        background 0.12s ease,
-        border-color 0.12s ease,
-        box-shadow 0.12s ease,
-        transform 0.08s ease;
+    user-select: none;
 }
 
-.tool::after {
-    content: "⋯";
-    font-size: 0.78rem;
-    color: var(--dia-text-muted);
-}
-
-.tool[data-shape="arrow"],
-.tool[data-shape="bidirectional"] {
-    cursor: pointer;
-    background: #f3f4f6;
+.tool:active {
+    cursor: grabbing;
 }
 
 .tool:hover {
-    background: #ffffff;
-    border-color: var(--dia-border-strong);
-    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.1);
-    transform: translateY(-1px);
+    background: #0b1120;
+    border-color: #4b5563;
 }
 
 .tool.active {
-    background: #ffffff;
-    border-color: var(--dia-border-strong);
-    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.22);
+    border-color: #22d3ee;
+    background: #020617;
 }
 
-/* Contenedor del lienzo */
+button {
+    font-size: 12px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #374151;
+    background: #111827;
+    color: #f9fafb;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: #374151;
+}
+
+button:hover {
+    background: #020617;
+}
+
+/* ===== STAGE ===== */
 
 .stage-wrapper {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 18px 18px 18px 12px;
+    min-width: 0;
 }
 
 .stage-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid #d1d5db;
+    background: #ffffff;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin-bottom: 10px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    border: 1px solid var(--dia-border-subtle);
-    background: #ffffff;
-    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
 .stage-title {
-    font-size: 0.9rem;
+    font-size: 15px;
     font-weight: 600;
 }
 
 .stage-subtitle {
-    font-size: 0.75rem;
-    color: var(--dia-text-muted);
+    font-size: 12px;
+    color: #6b7280;
 }
-
-/* Lienzo */
 
 .stage {
     flex: 1;
-    border-radius: 16px;
-    border: 1px solid var(--dia-border-subtle);
     position: relative;
+    background: radial-gradient(circle at 0 0, #e5e7eb 0, #f3f4f6 40%, #e5e7eb 100%);
     overflow: hidden;
-    box-shadow: var(--dia-shadow-soft);
-    background-color: #f9fafb;
-    background-image:
-        linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-        linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
-    background-size: 28px 28px;
+    cursor: grab;
 }
 
-/* Formas */
+.stage.panning {
+    cursor: grabbing;
+}
+
+/* Contenedor interno pan/zoom */
+.stage-inner {
+    position: absolute;
+    transform-origin: 0 0;
+}
+
+/* ===== FORMAS BÁSICAS ===== */
 
 .shape {
     position: absolute;
-    cursor: move;
-    user-select: none;
+    min-width: 120px;
+    min-height: 40px;
+    padding: 6px 10px;
+    background: #ffffff;
+    border-radius: 4px;
+    border: 1px solid #9ca3af;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--dia-text-primary);
-    font-size: 2rem; /* texto más grande */
-    font-weight:bold;
-    padding: 4px 10px;
-    background: var(--dia-shape-bg);
-    box-shadow:
-        0 10px 25px rgba(15, 23, 42, 0.12),
-        0 0 0 1px rgba(209, 213, 219, 0.9);
+    font-size: 13px;
+    cursor: move;
+    user-select: none;
 }
 
-.rectangle {
-    width: 180px;
-    height: 70px;
-    border-radius: 14px;
-    border: 2px solid var(--dia-shape-border-rect);
+.shape.rectangle {
+    border-radius: 4px;
 }
 
-.pill {
-    width: 200px;
-    height: 60px;
+.shape.pill {
     border-radius: 999px;
-    border: 2px solid var(--dia-shape-border-pill);
 }
 
-.circle {
+.shape.circle {
+    border-radius: 999px;
     width: 80px;
     height: 80px;
-    border-radius: 50%;
-    border: 2px solid var(--dia-shape-border-circle);
+    padding: 0;
+    justify-content: center;
 }
 
-.shape.selected {
-    outline: 2px dashed var(--dia-border-strong);
-    outline-offset: 4px;
+/* ===== BASE DE DATOS (CILINDRO) ===== */
+
+.shape.db {
+    min-width: 120px;
+    min-height: 60px;
+    padding-top: 20px;
+    border-radius: 60px / 16px;
+    background: linear-gradient(180deg, #e5e7eb 0%, #ffffff 40%, #e5e7eb 100%);
+    position: relative;
+    overflow: hidden;
+    text-align: center;
 }
 
-/* Flechas */
+.shape.db::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 48px;
+    width: 19px;
+    right: 8px;
+    transform: scaleX(6);
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid #9ca3af;
+    background: radial-gradient(circle at 50% 30%, #ffffff 0%, #e5e7eb 70%);
+}
+
+.shape.db::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 45px;
+    width: 17px;
+    right: 8px;
+    transform: scaleX(7);
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(156, 163, 175, 0.6);
+    border-top: none;
+    /* si quieres el degradado, descomenta la siguiente línea: */
+    /* background: radial-gradient(circle at 50% 70%, #e5e7eb 0%, #d1d5db 70%); */
+}
+
+/* Selección */
+
+.shape.selected,
+.arrow.selected,
+.ortho-arrow.selected {
+    box-shadow: 0 0 0 2px #22d3ee;
+    border-color: #0891b2;
+}
+
+/* ===== FLECHAS RECTAS ===== */
 
 .arrow {
     position: absolute;
     height: 2px;
-    background: var(--dia-primary);
+    background: #111827;
     transform-origin: 0 50%;
-    z-index: 1;
-    pointer-events: none;
 }
 
-/* Punta para flecha simple (extremo derecho) */
 .arrow::after {
-    content: '';
+    content: "";
     position: absolute;
     right: 0;
     top: 50%;
     transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-left: 9px solid var(--dia-primary);
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid #111827;
 }
 
-/* Segunda punta para flecha bidireccional (extremo izquierdo) */
-.arrow.arrow-double::before {
-    content: '';
+.arrow-double::before {
+    content: "";
     position: absolute;
     left: 0;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateY(-50%) rotate(180deg);
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid #111827;
+}
+
+/* ===== FLECHAS ORTOGONALES ===== */
+
+.ortho-arrow {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+}
+
+.ortho-arrow .ortho-seg {
+    position: absolute;
+    background: #111827;
+    pointer-events: auto;
+}
+
+.ortho-seg.seg-horizontal {
+    height: 2px;
+}
+
+.ortho-seg.seg-vertical {
+    width: 2px;
+}
+
+.ortho-arrowhead {
+    position: absolute;
     width: 0;
     height: 0;
-    border-right: 9px solid var(--dia-primary);
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
 }
 
-/* Botones */
-
-button {
-    padding: 8px 10px;
-    margin-top: 6px;
-    border-radius: 999px;
-    border: 1px solid var(--dia-border-subtle);
-    background: #f9fafb;
-    color: var(--dia-text-primary);
-    cursor: pointer;
-    font-size: 0.8rem;
-    text-align: left;
-    transition:
-        background 0.12s ease,
-        border-color 0.12s ease,
-        transform 0.08s ease,
-        box-shadow 0.12s ease;
+.ortho-arrowhead.dir-right {
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid #111827;
 }
 
-button.secondary {
+.ortho-arrowhead.dir-left {
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 8px solid #111827;
+}
+
+.ortho-arrowhead.dir-down {
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 8px solid #111827;
+}
+
+.ortho-arrowhead.dir-up {
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 8px solid #111827;
+}
+
+/* ===== ENTIDADES (ER) ===== */
+
+.shape.entity {
+    position: absolute;
+    width: 220px;
+    min-height: 80px;
     background: #ffffff;
-}
-
-button:hover {
-    border-color: var(--dia-border-strong);
-    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.16);
-    transform: translateY(-1px);
-}
-.stage {
-    position: relative;
+    border: 2px solid #111827;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.15);
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
     overflow: hidden;
-    background: #f7f7f7;
-    border-radius: 12px;
-    cursor: grab;
+    padding: 0;
 }
 
-/* Contenedor interno que se pan/zoomea */
-.stage-inner {
-    position: relative;
-    width: 5000px;   /* "mundo" grande para moverse */
-    height: 5000px;
-    transform-origin: 0 0;
+.entity-header {
+    background: #f3f4f6;
+    padding: 4px 8px;
+    font-weight: 600;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+    outline: none;
+    cursor: text;
 }
 
-/* Flechas y formas deben ser absolutely-positioned dentro de stage-inner */
-.shape {
-    position: absolute;
-    cursor: move;
-    /* resto de estilos que ya tuvieras (tamaño, colores, etc.) */
+.entity-properties {
+    flex: 1;
+    padding: 4px 4px 0 4px;
 }
 
-.arrow {
-    position: absolute;
-    height: 2px;
-    background: #333;
-    transform-origin: 0 50%;
+.entity-property {
+    display: grid;
+    grid-template-columns: 14px 1fr 14px;
+    align-items: center;
+    column-gap: 4px;
+    padding: 2px 0;
 }
 
-/* Resaltado de selección para eliminar */
-.shape.selected,
-.arrow.selected {
-    outline: 2px solid #007bff;
+.entity-property .property-name {
+    padding: 2px 4px;
+    border-radius: 3px;
+    outline: none;
+    cursor: text;
 }
 
-/* Mientras se hace pan */
-.stage.panning {
-    cursor: grabbing;
+.entity-property .property-name:focus {
+    box-shadow: 0 0 0 1px #22d3ee;
+}
+
+/* Puertos de conexión */
+
+.port {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid #111827;
+    background: #ffffff;
+    cursor: crosshair;
+}
+
+.port-left {
+    justify-self: start;
+}
+
+.port-right {
+    justify-self: end;
+}
+
+.port.selected {
+    background: #22d3ee;
+}
+
+/* Botón añadir atributo */
+
+.entity-add-prop {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    padding: 4px 0;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.entity-add-prop:hover {
+    background: #e5e7eb;
 }
 

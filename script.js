@@ -4,6 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('saveBtn');
     const uploadBtn = document.getElementById('uploadBtn');
     const uploadInput = document.getElementById('uploadInput');
+    const exportSvgBtn = document.getElementById('exportSvgBtn');
+    const exportHtmlBtn = document.getElementById('exportHtmlBtn');
+    const clearBtn = document.getElementById('clearBtn');
 
     // Contenedor interno para poder aplicar transform (pan/zoom)
     const stageInner = document.createElement('div');
@@ -11,11 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
     stage.appendChild(stageInner);
 
     let modoFlechaActivo = false;
-    let tipoFlecha = 'simple'; // 'simple' | 'doble'
-    let formaInicioSeleccionada = null;
-    let formaFinSeleccionada = null;
+    let tipoFlecha = 'simple';        // 'simple' | 'doble'
+    let estiloConexion = 'straight';  // 'straight' | 'ortho'
+    let nodoInicioSeleccionado = null; // puede ser forma o puerto
+    let nodoFinSeleccionado = null;
     let flechas = [];
     let contadorFormas = 0;
+    let contadorPropiedades = 0;
 
     // Pan / zoom del lienzo
     let stageScale = 1;
@@ -33,6 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Selección para borrado
     let elementoSeleccionado = null;
 
+    const EXPORT_PADDING = 40;
+    const LS_KEY = 'jocarsa_dia_autosave_v1';
+
+    /* ===== Transform del stage ===== */
+
     function updateStageTransform() {
         stageInner.style.transform =
             `translate(${stageOffsetX}px, ${stageOffsetY}px) scale(${stageScale})`;
@@ -42,124 +52,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return `forma-${++contadorFormas}`;
     }
 
-    /* ===== Herramientas ===== */
-
-    tools.forEach(tool => {
-        // Arrastre de formas
-        tool.addEventListener('dragstart', (e) => {
-            const shape = tool.dataset.shape;
-            if (shape === 'rectangle' || shape === 'pill' || shape === 'circle') {
-                e.dataTransfer.setData('shape', shape);
-            }
-        });
-
-        // Clic en herramienta
-        tool.addEventListener('click', () => {
-            tools.forEach(t => t.classList.remove('active'));
-            const shapeType = tool.dataset.shape;
-
-            if (shapeType === 'arrow' || shapeType === 'bidirectional') {
-                modoFlechaActivo = true;
-                tipoFlecha = (shapeType === 'bidirectional') ? 'doble' : 'simple';
-                stage.style.cursor = 'crosshair';
-                tool.classList.add('active');
-
-                formaInicioSeleccionada = null;
-                formaFinSeleccionada = null;
-                document.querySelectorAll('.shape').forEach(forma => {
-                    forma.classList.remove('selected');
-                });
-            } else {
-                modoFlechaActivo = false;
-                stage.style.cursor = 'grab';
-            }
-        });
-    });
-
-    /* ===== Selección de formas y flechas + conexión ===== */
-
-    stage.addEventListener('click', (e) => {
-        const formaClicada = e.target.closest('.shape');
-        const flechaClicada = e.target.closest('.arrow');
-
-        if (modoFlechaActivo) {
-            // Modo conexión: seleccionar dos formas y crear flecha
-            if (!formaClicada) return;
-
-            if (!formaInicioSeleccionada) {
-                formaInicioSeleccionada = formaClicada;
-                formaClicada.classList.add('selected');
-            } else if (!formaFinSeleccionada && formaClicada !== formaInicioSeleccionada) {
-                formaFinSeleccionada = formaClicada;
-                formaClicada.classList.add('selected');
-
-                crearFlecha(formaInicioSeleccionada, formaFinSeleccionada, tipoFlecha);
-
-                formaInicioSeleccionada.classList.remove('selected');
-                formaFinSeleccionada.classList.remove('selected');
-                formaInicioSeleccionada = null;
-                formaFinSeleccionada = null;
-
-                // Salir de modo flecha después de crear una
-                modoFlechaActivo = false;
-                stage.style.cursor = 'grab';
-                tools.forEach(t => t.classList.remove('active'));
-            }
-            return;
-        }
-
-        // Modo normal: selección para borrar
-        limpiarSeleccion();
-        if (formaClicada) {
-            elementoSeleccionado = formaClicada;
-            formaClicada.classList.add('selected');
-        } else if (flechaClicada) {
-            elementoSeleccionado = flechaClicada;
-            flechaClicada.classList.add('selected');
-        } else {
-            elementoSeleccionado = null;
-        }
-    });
-
-    function limpiarSeleccion() {
-        document.querySelectorAll('.shape.selected, .arrow.selected')
-            .forEach(el => el.classList.remove('selected'));
+    function generarIdPropiedad() {
+        return `prop-${++contadorPropiedades}`;
     }
 
-    /* ===== Creación y actualización de flechas ===== */
+    /* ===== Helpers de coordenadas ===== */
 
-    function crearFlecha(formaInicio, formaFin, tipo = 'simple') {
-        const flecha = document.createElement('div');
-        flecha.classList.add('arrow');
-        if (tipo === 'doble') {
-            flecha.classList.add('arrow-double');
-        }
-
-        stageInner.appendChild(flecha);
-
-        const objFlecha = {
-            flecha,
-            formaInicio,
-            formaFin,
-            tipo,
-            manejadorMovimiento: null
-        };
-
-        const manejadorMovimiento = () =>
-            actualizarPosicionFlecha(objFlecha.flecha, objFlecha.formaInicio, objFlecha.formaFin);
-
-        objFlecha.manejadorMovimiento = manejadorMovimiento;
-        flechas.push(objFlecha);
-
-        formaInicio.manejadoresMovimiento = formaInicio.manejadoresMovimiento || [];
-        formaFin.manejadoresMovimiento = formaFin.manejadoresMovimiento || [];
-        formaInicio.manejadoresMovimiento.push(manejadorMovimiento);
-        formaFin.manejadoresMovimiento.push(manejadorMovimiento);
-
-        actualizarPosicionFlecha(flecha, formaInicio, formaFin);
+    function worldRect(el) {
+        const rect = el.getBoundingClientRect();
+        const rectStage = stage.getBoundingClientRect();
+        const sx = rect.left - rectStage.left;
+        const sy = rect.top - rectStage.top;
+        const x = (sx - stageOffsetX) / stageScale;
+        const y = (sy - stageOffsetY) / stageScale;
+        const width = rect.width / stageScale;
+        const height = rect.height / stageScale;
+        return { x, y, width, height };
     }
 
-    // Calcula el punto en el borde de un rectángulo en la dirección (haciaX, haciaY)
     function puntoEnBorde(cx, cy, rectWidth, rectHeight, tx, ty) {
         const dx = tx - cx;
         const dy = ty - cy;
@@ -180,18 +90,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function actualizarPosicionFlecha(flecha, formaInicio, formaFin) {
+    function getConnectionPoints(formaInicio, formaFin) {
         const rectInicio = formaInicio.getBoundingClientRect();
         const rectFin = formaFin.getBoundingClientRect();
         const rectStage = stage.getBoundingClientRect();
 
-        // Coordenadas de centro en pantalla relativas al stage
         const centroInicioScreenX = rectInicio.left + rectInicio.width / 2 - rectStage.left;
         const centroInicioScreenY = rectInicio.top + rectInicio.height / 2 - rectStage.top;
         const centroFinScreenX = rectFin.left + rectFin.width / 2 - rectStage.left;
         const centroFinScreenY = rectFin.top + rectFin.height / 2 - rectStage.top;
 
-        // Pasar a coordenadas "mundo" (stageInner antes de transform)
         const centroInicioX = (centroInicioScreenX - stageOffsetX) / stageScale;
         const centroInicioY = (centroInicioScreenY - stageOffsetY) / stageScale;
         const centroFinX = (centroFinScreenX - stageOffsetX) / stageScale;
@@ -220,21 +128,533 @@ document.addEventListener('DOMContentLoaded', () => {
             centroInicioY
         );
 
-        const dx = bordeFin.x - bordeInicio.x;
-        const dy = bordeFin.y - bordeInicio.y;
-        const longitud = Math.sqrt(dx * dx + dy * dy);
+        return {
+            startX: bordeInicio.x,
+            startY: bordeInicio.y,
+            endX: bordeFin.x,
+            endY: bordeFin.y
+        };
+    }
 
-        if (longitud === 0) {
-            flecha.style.width = '0px';
+    /* ===== Serialización / LocalStorage ===== */
+
+    function exportDiagramAsJSON() {
+        const formas = [];
+        stageInner.querySelectorAll('.shape').forEach(el => {
+            const tipo = Array.from(el.classList)
+                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity'].includes(cls));
+
+            const forma = {
+                id: el.id,
+                tipo,
+                left: el.style.left,
+                top: el.style.top,
+                width: el.style.width,
+                height: el.style.height
+            };
+
+            if (tipo === 'entity') {
+                const header = el.querySelector('.entity-header');
+                forma.entityName = header ? header.textContent : '';
+                forma.properties = [];
+                el.querySelectorAll('.entity-property').forEach(propEl => {
+                    const nameEl = propEl.querySelector('.property-name');
+                    forma.properties.push({
+                        id: propEl.dataset.propId,
+                        name: nameEl ? nameEl.textContent : ''
+                    });
+                });
+            } else {
+                forma.texto = el.textContent;
+            }
+
+            formas.push(forma);
+        });
+
+        const datosFlechas = flechas.map(f => {
+            const fromNode = f.formaInicio;
+            const toNode = f.formaFin;
+
+            const fromShape = f.shapeInicio;
+            const toShape = f.shapeFin;
+
+            const fromProp = fromNode.closest('.entity-property');
+            const toProp = toNode.closest('.entity-property');
+
+            const fromSide = fromNode.classList.contains('port-left')
+                ? 'left'
+                : fromNode.classList.contains('port-right')
+                    ? 'right'
+                    : null;
+
+            const toSide = toNode.classList.contains('port-left')
+                ? 'left'
+                : toNode.classList.contains('port-right')
+                    ? 'right'
+                    : null;
+
+            return {
+                desde: {
+                    shapeId: fromShape.id,
+                    propId: fromProp ? fromProp.dataset.propId : null,
+                    side: fromSide
+                },
+                hasta: {
+                    shapeId: toShape.id,
+                    propId: toProp ? toProp.dataset.propId : null,
+                    side: toSide
+                },
+                tipo: f.tipo || 'simple',
+                estilo: f.estilo || 'straight'
+            };
+        });
+
+        return JSON.stringify({ formas, flechas: datosFlechas }, null, 2);
+    }
+
+    function saveToLocalStorage() {
+        try {
+            const json = exportDiagramAsJSON();
+            localStorage.setItem(LS_KEY, json);
+        } catch (e) {
+            console.warn('No se pudo guardar en localStorage', e);
+        }
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const saved = localStorage.getItem(LS_KEY);
+            if (!saved) return null;
+            return JSON.parse(saved);
+        } catch (e) {
+            console.warn('No se pudo cargar desde localStorage', e);
+            return null;
+        }
+    }
+
+    function rebuildFromData(data) {
+        const formas = data.formas || [];
+        const datosFlechas = data.flechas || [];
+
+        stageInner.innerHTML = '';
+        flechas = [];
+        contadorFormas = 0;
+        contadorPropiedades = 0;
+        elementoSeleccionado = null;
+        nodoInicioSeleccionado = null;
+        nodoFinSeleccionado = null;
+
+        const mapaFormas = {};
+
+        // Crear formas
+        formas.forEach(forma => {
+            let el;
+
+            if (forma.tipo === 'entity') {
+                el = document.createElement('div');
+                el.id = forma.id || generarIdForma();
+                el.classList.add('shape', 'entity');
+                el.style.left = forma.left;
+                el.style.top = forma.top;
+                if (forma.width) el.style.width = forma.width;
+                if (forma.height) el.style.height = forma.height;
+
+                el.innerHTML = `
+                    <div class="entity-header" contenteditable="true"></div>
+                    <div class="entity-properties"></div>
+                    <button type="button" class="entity-add-prop">+ atributo</button>
+                `;
+
+                const header = el.querySelector('.entity-header');
+                header.textContent = forma.entityName || 'Entidad';
+
+                const propsContainer = el.querySelector('.entity-properties');
+
+                (forma.properties || []).forEach(prop => {
+                    crearPropiedad(propsContainer, prop.name || 'atributo', prop.id || null);
+
+                    if (prop.id) {
+                        const m = prop.id.match(/prop-(\d+)/);
+                        if (m) {
+                            const n = parseInt(m[1], 10);
+                            if (!isNaN(n) && n > contadorPropiedades) {
+                                contadorPropiedades = n;
+                            }
+                        }
+                    }
+                });
+
+                stageInner.appendChild(el);
+                hacerArrastrable(el);
+                inicializarEntidad(el, { addDefaultProperty: false });
+            } else {
+                el = document.createElement('div');
+                el.id = forma.id || generarIdForma();
+                el.classList.add('shape', forma.tipo);
+                el.style.left = forma.left;
+                el.style.top = forma.top;
+                if (forma.width) el.style.width = forma.width;
+                if (forma.height) el.style.height = forma.height;
+                el.textContent = forma.texto || '';
+                stageInner.appendChild(el);
+                hacerArrastrable(el);
+                prepararEdicionTexto(el);
+            }
+
+            if (el.id) {
+                const match = el.id.match(/forma-(\d+)/);
+                if (match) {
+                    const n = parseInt(match[1], 10);
+                    if (!isNaN(n) && n > contadorFormas) contadorFormas = n;
+                }
+            }
+
+            mapaFormas[el.id] = el;
+        });
+
+        // Mapa de puertos por propId+lado
+        const mapaPuertos = {};
+        stageInner.querySelectorAll('.entity-property').forEach(propEl => {
+            const propId = propEl.dataset.propId;
+            if (!propId) return;
+            const leftPort = propEl.querySelector('.port-left');
+            const rightPort = propEl.querySelector('.port-right');
+            if (leftPort) mapaPuertos[`${propId}:left`] = leftPort;
+            if (rightPort) mapaPuertos[`${propId}:right`] = rightPort;
+        });
+
+        // Crear flechas
+        if (Array.isArray(datosFlechas)) {
+            datosFlechas.forEach(df => {
+                const tipo = df.tipo || 'simple';
+                const estilo = df.estilo || 'straight';
+
+                if (df.desde && df.hasta) {
+                    let fromNode = null;
+                    let toNode = null;
+
+                    const fromShape = mapaFormas[df.desde.shapeId];
+                    const toShape = mapaFormas[df.hasta.shapeId];
+
+                    if (df.desde.propId && df.desde.side) {
+                        fromNode = mapaPuertos[`${df.desde.propId}:${df.desde.side}`];
+                    }
+                    if (!fromNode) fromNode = fromShape;
+
+                    if (df.hasta.propId && df.hasta.side) {
+                        toNode = mapaPuertos[`${df.hasta.propId}:${df.hasta.side}`];
+                    }
+                    if (!toNode) toNode = toShape;
+
+                    if (fromNode && toNode) {
+                        crearFlecha(fromNode, toNode, tipo, estilo);
+                    }
+                } else if (df.idInicio && df.idFin) {
+                    // compat con formato antiguo
+                    const formaInicio = mapaFormas[df.idInicio];
+                    const formaFin = mapaFormas[df.idFin];
+                    if (formaInicio && formaFin) {
+                        crearFlecha(formaInicio, formaFin, tipo, 'straight');
+                    }
+                }
+            });
+        }
+
+        stageScale = 1;
+        stageOffsetX = 0;
+        stageOffsetY = 0;
+        updateStageTransform();
+    }
+
+    function clearStage() {
+        stageInner.innerHTML = '';
+        flechas = [];
+        contadorFormas = 0;
+        contadorPropiedades = 0;
+        elementoSeleccionado = null;
+        nodoInicioSeleccionado = null;
+        nodoFinSeleccionado = null;
+
+        stageScale = 1;
+        stageOffsetX = 0;
+        stageOffsetY = 0;
+        updateStageTransform();
+
+        try {
+            localStorage.removeItem(LS_KEY);
+        } catch (e) {
+            console.warn('No se pudo limpiar localStorage', e);
+        }
+    }
+
+    /* ===== Herramientas ===== */
+
+    tools.forEach(tool => {
+        // Arrastre de formas
+        tool.addEventListener('dragstart', (e) => {
+            const shape = tool.dataset.shape;
+            if (['rectangle', 'pill', 'circle', 'db', 'entity'].includes(shape)) {
+                e.dataTransfer.setData('shape', shape);
+            }
+        });
+
+        // Clic en herramienta
+        tool.addEventListener('click', () => {
+            tools.forEach(t => t.classList.remove('active'));
+            const shapeType = tool.dataset.shape;
+
+            const esConexion = [
+                'arrow',
+                'bidirectional',
+                'ortho',
+                'ortho-bidirectional'
+            ].includes(shapeType);
+
+            if (esConexion) {
+                modoFlechaActivo = true;
+                tipoFlecha = (shapeType === 'bidirectional' || shapeType === 'ortho-bidirectional')
+                    ? 'doble'
+                    : 'simple';
+                estiloConexion = (shapeType === 'ortho' || shapeType === 'ortho-bidirectional')
+                    ? 'ortho'
+                    : 'straight';
+
+                stage.style.cursor = 'crosshair';
+                tool.classList.add('active');
+
+                nodoInicioSeleccionado = null;
+                nodoFinSeleccionado = null;
+                document.querySelectorAll('.shape, .port').forEach(forma => {
+                    forma.classList.remove('selected');
+                });
+            } else {
+                modoFlechaActivo = false;
+                stage.style.cursor = 'grab';
+            }
+        });
+    });
+
+    /* ===== Selección de formas / puertos y flechas + conexión ===== */
+
+    stage.addEventListener('click', (e) => {
+        const portClicado = e.target.closest('.port');
+        const formaClicada = e.target.closest('.shape');
+        const flechaClicada = e.target.closest('.arrow, .ortho-arrow');
+
+        if (modoFlechaActivo) {
+            const nodoClicado = portClicado || formaClicada;
+            if (!nodoClicado) return;
+
+            if (!nodoInicioSeleccionado) {
+                nodoInicioSeleccionado = nodoClicado;
+                nodoClicado.classList.add('selected');
+            } else if (!nodoFinSeleccionado && nodoClicado !== nodoInicioSeleccionado) {
+                nodoFinSeleccionado = nodoClicado;
+                nodoClicado.classList.add('selected');
+
+                crearFlecha(
+                    nodoInicioSeleccionado,
+                    nodoFinSeleccionado,
+                    tipoFlecha,
+                    estiloConexion
+                );
+
+                nodoInicioSeleccionado.classList.remove('selected');
+                nodoFinSeleccionado.classList.remove('selected');
+                nodoInicioSeleccionado = null;
+                nodoFinSeleccionado = null;
+
+                modoFlechaActivo = false;
+                stage.style.cursor = 'grab';
+                tools.forEach(t => t.classList.remove('active'));
+            }
             return;
         }
 
-        const angulo = Math.atan2(dy, dx);
+        limpiarSeleccion();
+        if (formaClicada) {
+            elementoSeleccionado = formaClicada;
+            formaClicada.classList.add('selected');
+        } else if (flechaClicada) {
+            elementoSeleccionado = flechaClicada;
+            flechaClicada.classList.add('selected');
+        } else {
+            elementoSeleccionado = null;
+        }
+    });
 
-        flecha.style.left = `${bordeInicio.x}px`;
-        flecha.style.top = `${bordeInicio.y}px`;
-        flecha.style.width = `${longitud}px`;
-        flecha.style.transform = `rotate(${angulo}rad)`;
+    function limpiarSeleccion() {
+        document
+            .querySelectorAll('.shape.selected, .arrow.selected, .ortho-arrow.selected, .port.selected')
+            .forEach(el => el.classList.remove('selected'));
+    }
+
+    /* ===== Creación y actualización de flechas ===== */
+
+    function crearFlecha(nodoInicio, nodoFin, tipo = 'simple', estilo = 'straight') {
+        let flecha;
+
+        if (estilo === 'straight') {
+            flecha = document.createElement('div');
+            flecha.classList.add('arrow');
+            if (tipo === 'doble') {
+                flecha.classList.add('arrow-double');
+            }
+        } else {
+            flecha = document.createElement('div');
+            flecha.classList.add('ortho-arrow');
+            if (tipo === 'doble') {
+                flecha.classList.add('ortho-arrow-double');
+            }
+
+            const seg1 = document.createElement('div');
+            seg1.classList.add('ortho-seg', 'seg-horizontal', 'seg1');
+
+            const seg2 = document.createElement('div');
+            seg2.classList.add('ortho-seg', 'seg-vertical', 'seg2');
+
+            const headEnd = document.createElement('div');
+            headEnd.classList.add('ortho-arrowhead', 'ortho-head-end');
+
+            flecha.appendChild(seg1);
+            flecha.appendChild(seg2);
+            flecha.appendChild(headEnd);
+
+            if (tipo === 'doble') {
+                const headStart = document.createElement('div');
+                headStart.classList.add('ortho-arrowhead', 'ortho-head-start');
+                flecha.appendChild(headStart);
+            }
+        }
+
+        stageInner.appendChild(flecha);
+
+        const shapeInicio = nodoInicio.closest('.shape') || nodoInicio;
+        const shapeFin = nodoFin.closest('.shape') || nodoFin;
+
+        const objFlecha = {
+            flecha,
+            formaInicio: nodoInicio,
+            formaFin: nodoFin,
+            shapeInicio,
+            shapeFin,
+            tipo,
+            estilo,
+            manejadorMovimiento: null
+        };
+
+        const manejadorMovimiento = () => actualizarPosicionFlecha(objFlecha);
+        objFlecha.manejadorMovimiento = manejadorMovimiento;
+        flechas.push(objFlecha);
+
+        shapeInicio.manejadoresMovimiento = shapeInicio.manejadoresMovimiento || [];
+        shapeFin.manejadoresMovimiento = shapeFin.manejadoresMovimiento || [];
+        shapeInicio.manejadoresMovimiento.push(manejadorMovimiento);
+        shapeFin.manejadoresMovimiento.push(manejadorMovimiento);
+
+        actualizarPosicionFlecha(objFlecha);
+        saveToLocalStorage();
+    }
+
+    function actualizarPosicionFlecha(obj) {
+        const { flecha, formaInicio, formaFin, estilo, tipo } = obj;
+
+        const pts = getConnectionPoints(formaInicio, formaFin);
+        const dx = pts.endX - pts.startX;
+        const dy = pts.endY - pts.startY;
+        const longitud = Math.sqrt(dx * dx + dy * dy);
+
+        if (longitud === 0) {
+            if (flecha.classList.contains('arrow')) {
+                flecha.style.width = '0px';
+            }
+            return;
+        }
+
+        if (estilo === 'straight') {
+            const angulo = Math.atan2(dy, dx);
+            flecha.style.left = `${pts.startX}px`;
+            flecha.style.top = `${pts.startY}px`;
+            flecha.style.width = `${longitud}px`;
+            flecha.style.transform = `rotate(${angulo}rad)`;
+        } else {
+            const elbowX = pts.endX;
+            const elbowY = pts.startY;
+
+            const seg1 = flecha.querySelector('.seg1');
+            const seg2 = flecha.querySelector('.seg2');
+            const headEnd = flecha.querySelector('.ortho-head-end');
+            const headStart = flecha.querySelector('.ortho-head-start');
+
+            if (!seg1 || !seg2 || !headEnd) return;
+
+            const seg1Left = Math.min(pts.startX, elbowX);
+            const seg1Width = Math.abs(elbowX - pts.startX);
+
+            seg1.style.left = `${seg1Left}px`;
+            seg1.style.top = `${elbowY}px`;
+            seg1.style.width = `${seg1Width}px`;
+            seg1.style.height = `2px`;
+
+            const seg2Top = Math.min(elbowY, pts.endY);
+            const seg2Height = Math.abs(pts.endY - elbowY);
+
+            seg2.style.left = `${elbowX}px`;
+            seg2.style.top = `${seg2Top}px`;
+            seg2.style.width = `2px`;
+            seg2.style.height = `${seg2Height}px`;
+
+            ['dir-right', 'dir-left', 'dir-up', 'dir-down'].forEach(cls => {
+                headEnd.classList.remove(cls);
+                if (headStart) headStart.classList.remove(cls);
+            });
+
+            if (Math.abs(dy) >= Math.abs(dx)) {
+                if (pts.endY >= elbowY) {
+                    headEnd.classList.add('dir-down');
+                    headEnd.style.left = `${pts.endX - 4}px`;
+                    headEnd.style.top = `${pts.endY}px`;
+                } else {
+                    headEnd.classList.add('dir-up');
+                    headEnd.style.left = `${pts.endX - 4}px`;
+                    headEnd.style.top = `${pts.endY - 8}px`;
+                }
+            } else {
+                if (pts.endX >= pts.startX) {
+                    headEnd.classList.add('dir-right');
+                    headEnd.style.left = `${pts.endX}px`;
+                    headEnd.style.top = `${pts.endY - 4}px`;
+                } else {
+                    headEnd.classList.add('dir-left');
+                    headEnd.style.left = `${pts.endX - 8}px`;
+                    headEnd.style.top = `${pts.endY - 4}px`;
+                }
+            }
+
+            if (tipo === 'doble' && headStart) {
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    if (pts.startX <= elbowX) {
+                        headStart.classList.add('dir-left');
+                        headStart.style.left = `${pts.startX - 8}px`;
+                        headStart.style.top = `${pts.startY - 4}px`;
+                    } else {
+                        headStart.classList.add('dir-right');
+                        headStart.style.left = `${pts.startX}px`;
+                        headStart.style.top = `${pts.startY - 4}px`;
+                    }
+                } else {
+                    if (pts.startY <= pts.endY) {
+                        headStart.classList.add('dir-up');
+                        headStart.style.left = `${pts.startX - 4}px`;
+                        headStart.style.top = `${pts.startY - 8}px`;
+                    } else {
+                        headStart.classList.add('dir-down');
+                        headStart.style.left = `${pts.startX - 4}px`;
+                        headStart.style.top = `${pts.startY}px`;
+                    }
+                }
+            }
+        }
     }
 
     /* ===== Lienzo: soltar formas ===== */
@@ -254,32 +674,117 @@ document.addEventListener('DOMContentLoaded', () => {
         const sx = e.clientX - rectStage.left;
         const sy = e.clientY - rectStage.top;
 
-        // Convertir a coordenadas mundo (antes de transform)
         const worldX = (sx - stageOffsetX) / stageScale;
         const worldY = (sy - stageOffsetY) / stageScale;
 
+        if (tipoForma === 'entity') {
+            crearEntidadEn(worldX, worldY);
+        } else {
+            crearFormaSimple(tipoForma, worldX, worldY);
+        }
+    });
+
+    function crearFormaSimple(tipoForma, worldX, worldY) {
         const forma = document.createElement('div');
         forma.id = generarIdForma();
         forma.classList.add('shape', tipoForma);
 
-        // Los 70/35 originales como "semi-tamaño" de la forma
         forma.style.left = `${worldX - 70}px`;
         forma.style.top = `${worldY - 35}px`;
         forma.contentEditable = 'false';
+        forma.textContent = (tipoForma === 'db') ? 'Base de datos' : '';
 
         stageInner.appendChild(forma);
         hacerArrastrable(forma);
         prepararEdicionTexto(forma);
-    });
+        saveToLocalStorage();
+    }
+
+    function crearEntidadEn(worldX, worldY) {
+        const entidad = document.createElement('div');
+        entidad.id = generarIdForma();
+        entidad.classList.add('shape', 'entity');
+        entidad.style.left = `${worldX - 110}px`;
+        entidad.style.top = `${worldY - 50}px`;   // <-- corregido: worldY, no worldX
+
+        entidad.innerHTML = `
+            <div class="entity-header" contenteditable="true">Entidad</div>
+            <div class="entity-properties"></div>
+            <button type="button" class="entity-add-prop">+ atributo</button>
+        `;
+
+        stageInner.appendChild(entidad);
+        hacerArrastrable(entidad);
+        inicializarEntidad(entidad, { addDefaultProperty: true });
+        saveToLocalStorage();
+    }
+
+    function inicializarEntidad(entidadEl, options = { addDefaultProperty: false }) {
+        const propsContainer = entidadEl.querySelector('.entity-properties');
+        const addBtn = entidadEl.querySelector('.entity-add-prop');
+        const header = entidadEl.querySelector('.entity-header');
+
+        if (options.addDefaultProperty) {
+            crearPropiedad(propsContainer, 'id');
+        }
+
+        addBtn.addEventListener('click', () => {
+            crearPropiedad(propsContainer, 'atributo');
+            saveToLocalStorage();
+        });
+
+        if (header) {
+            header.addEventListener('input', () => {
+                saveToLocalStorage();
+            });
+        }
+    }
+
+    function crearPropiedad(contenedor, nombreInicial = 'atributo', propId = null) {
+        const propRow = document.createElement('div');
+        propRow.classList.add('entity-property');
+        propRow.dataset.propId = propId || generarIdPropiedad();
+
+        const portLeft = document.createElement('div');
+        portLeft.classList.add('port', 'port-left');
+
+        const nameEl = document.createElement('div');
+        nameEl.classList.add('property-name');
+        nameEl.textContent = nombreInicial;
+        nameEl.contentEditable = 'true';
+
+        const portRight = document.createElement('div');
+        portRight.classList.add('port', 'port-right');
+
+        propRow.appendChild(portLeft);
+        propRow.appendChild(nameEl);
+        propRow.appendChild(portRight);
+
+        contenedor.appendChild(propRow);
+
+        nameEl.addEventListener('input', () => {
+            saveToLocalStorage();
+        });
+        nameEl.addEventListener('blur', () => {
+            saveToLocalStorage();
+        });
+
+        return propRow;
+    }
 
     function prepararEdicionTexto(forma) {
         forma.addEventListener('dblclick', () => {
-            forma.contentEditable = 'true';
-            forma.focus();
+            if (!forma.classList.contains('entity')) {
+                forma.contentEditable = 'true';
+                forma.focus();
+            }
         });
 
         forma.addEventListener('blur', () => {
-            forma.contentEditable = 'false';
+            if (!forma.classList.contains('entity')) {
+                forma.contentEditable = 'false';
+                saveToLocalStorage();
+            }
         });
     }
 
@@ -292,8 +797,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === elemento && !modoFlechaActivo) {
                 arrastrando = true;
                 const rect = elemento.getBoundingClientRect();
-                offsetX = e.clientX - rect.left;  // pantalla
-                offsetY = e.clientY - rect.top;   // pantalla
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
                 elemento.style.cursor = 'grabbing';
             }
         });
@@ -304,7 +809,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const sx = e.clientX - rectStage.left;
             const sy = e.clientY - rectStage.top;
 
-            // Pasar a mundo, compensando pan/zoom y el offset de ratón
             const worldX = ((sx - stageOffsetX) / stageScale) - (offsetX / stageScale);
             const worldY = ((sy - stageOffsetY) / stageScale) - (offsetY / stageScale);
 
@@ -320,6 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (arrastrando) {
                 arrastrando = false;
                 elemento.style.cursor = 'move';
+                saveToLocalStorage();
             }
         });
     }
@@ -327,9 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ===== Pan del stage ===== */
 
     stage.addEventListener('mousedown', (e) => {
-        // Si se ha hecho clic en una forma o flecha, no pan
-        if (e.target.closest('.shape') || e.target.closest('.arrow')) return;
-        // Si estamos en modo flecha, tampoco pan
+        if (e.target.closest('.shape') || e.target.closest('.arrow') || e.target.closest('.ortho-arrow')) return;
         if (modoFlechaActivo) return;
 
         isPanning = true;
@@ -370,21 +873,16 @@ document.addEventListener('DOMContentLoaded', () => {
         newScale = Math.max(stageMinScale, Math.min(stageMaxScale, newScale));
         if (newScale === stageScale) return;
 
-        // Punto del mundo bajo el cursor antes del zoom
         const worldX = (sx - stageOffsetX) / stageScale;
         const worldY = (sy - stageOffsetY) / stageScale;
 
         stageScale = newScale;
 
-        // Reajustar offset para mantener el punto bajo el cursor
         stageOffsetX = sx - worldX * stageScale;
         stageOffsetY = sy - worldY * stageScale;
 
         updateStageTransform();
-        // Recalcular flechas después del zoom
-        flechas.forEach(f =>
-            actualizarPosicionFlecha(f.flecha, f.formaInicio, f.formaFin)
-        );
+        flechas.forEach(f => actualizarPosicionFlecha(f));
     });
 
     /* ===== Borrado con tecla Supr/Delete ===== */
@@ -393,8 +891,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key !== 'Delete') return;
         if (!elementoSeleccionado) return;
 
-        // Si es una flecha
-        if (elementoSeleccionado.classList.contains('arrow')) {
+        if (elementoSeleccionado.classList.contains('arrow') ||
+            elementoSeleccionado.classList.contains('ortho-arrow')) {
+
             const obj = flechas.find(f => f.flecha === elementoSeleccionado);
             if (obj) {
                 eliminarFlecha(obj);
@@ -402,74 +901,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 elementoSeleccionado.remove();
             }
             elementoSeleccionado = null;
+            saveToLocalStorage();
             return;
         }
 
-        // Si es una forma
         if (elementoSeleccionado.classList.contains('shape')) {
-            // Eliminar flechas asociadas
             const relacionadas = flechas.filter(f =>
-                f.formaInicio === elementoSeleccionado ||
-                f.formaFin === elementoSeleccionado
+                f.shapeInicio === elementoSeleccionado ||
+                f.shapeFin === elementoSeleccionado
             );
             relacionadas.forEach(eliminarFlecha);
 
             elementoSeleccionado.remove();
             elementoSeleccionado = null;
+            saveToLocalStorage();
         }
     });
 
     function eliminarFlecha(objFlecha) {
-        const { flecha, formaInicio, formaFin, manejadorMovimiento } = objFlecha;
+        const { flecha, shapeInicio, shapeFin, manejadorMovimiento } = objFlecha;
         flecha.remove();
 
-        // eliminar manejadores de movimiento asociados
-        if (formaInicio.manejadoresMovimiento) {
-            formaInicio.manejadoresMovimiento =
-                formaInicio.manejadoresMovimiento.filter(fn => fn !== manejadorMovimiento);
+        if (shapeInicio.manejadoresMovimiento) {
+            shapeInicio.manejadoresMovimiento =
+                shapeInicio.manejadoresMovimiento.filter(fn => fn !== manejadorMovimiento);
         }
-        if (formaFin.manejadoresMovimiento) {
-            formaFin.manejadoresMovimiento =
-                formaFin.manejadoresMovimiento.filter(fn => fn !== manejadorMovimiento);
+        if (shapeFin.manejadoresMovimiento) {
+            shapeFin.manejadoresMovimiento =
+                shapeFin.manejadoresMovimiento.filter(fn => fn !== manejadorMovimiento);
         }
 
         flechas = flechas.filter(f => f !== objFlecha);
+        saveToLocalStorage();
     }
 
-    /* ===== Guardar diagrama ===== */
+    /* ===== Guardar JSON ===== */
 
     saveBtn.addEventListener('click', () => {
-        const formas = [];
-        stageInner.querySelectorAll('.shape').forEach(el => {
-            const forma = {
-                id: el.id,
-                tipo: Array.from(el.classList).find(cls => ['rectangle', 'pill', 'circle'].includes(cls)),
-                left: el.style.left,
-                top: el.style.top,
-                width: el.style.width,
-                height: el.style.height,
-                texto: el.textContent
-            };
-            formas.push(forma);
-        });
-
-        const datosFlechas = flechas.map(f => ({
-            idInicio: f.formaInicio.id,
-            idFin: f.formaFin.id,
-            tipo: f.tipo || 'simple'
-        }));
-
-        const datos = JSON.stringify({ formas, flechas: datosFlechas }, null, 2);
-        const blob = new Blob([datos], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'diagrama.json';
-        a.click();
-        URL.revokeObjectURL(url);
+        const datos = exportDiagramAsJSON();
+        descargarBlob(datos, 'diagrama.json', 'application/json');
+        saveToLocalStorage();
     });
 
-    /* ===== Cargar diagrama ===== */
+    /* ===== Cargar JSON (archivo) ===== */
 
     uploadBtn.addEventListener('click', () => {
         uploadInput.click();
@@ -481,53 +955,651 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const reader = new FileReader();
         reader.onload = (evento) => {
-            const { formas, flechas: datosFlechas } = JSON.parse(evento.target.result);
-            stageInner.innerHTML = '';
-            flechas = [];
-            contadorFormas = 0;
-            elementoSeleccionado = null;
-            formaInicioSeleccionada = null;
-            formaFinSeleccionada = null;
-
-            const mapaFormas = {};
-
-            formas.forEach(forma => {
-                const el = document.createElement('div');
-                el.id = forma.id || generarIdForma();
-                el.classList.add('shape', forma.tipo);
-                el.style.left = forma.left;
-                el.style.top = forma.top;
-                if (forma.width) el.style.width = forma.width;
-                if (forma.height) el.style.height = forma.height;
-                el.textContent = forma.texto || '';
-                stageInner.appendChild(el);
-                hacerArrastrable(el);
-                prepararEdicionTexto(el);
-
-                mapaFormas[el.id] = el;
-            });
-
-            if (Array.isArray(datosFlechas)) {
-                datosFlechas.forEach(df => {
-                    const formaInicio = mapaFormas[df.idInicio];
-                    const formaFin = mapaFormas[df.idFin];
-                    const tipo = df.tipo || 'simple';
-                    if (formaInicio && formaFin) {
-                        crearFlecha(formaInicio, formaFin, tipo);
-                    }
-                });
-            }
-
-            // Restaurar transform por si se había pan/zoom
-            stageScale = 1;
-            stageOffsetX = 0;
-            stageOffsetY = 0;
-            updateStageTransform();
+            const json = JSON.parse(evento.target.result);
+            rebuildFromData(json);
+            saveToLocalStorage();
         };
         reader.readAsText(archivo);
     });
 
-    // Inicializar transform
-    updateStageTransform();
+    /* ===== Botón limpiar lienzo ===== */
+
+    clearBtn.addEventListener('click', () => {
+        const ok = confirm('¿Seguro que quieres limpiar el lienzo? Se perderá el diagrama actual salvo que lo hayas exportado.');
+        if (!ok) return;
+        clearStage();
+    });
+
+    /* ===== Exportar SVG ===== */
+
+    exportSvgBtn.addEventListener('click', () => {
+        const shapes = Array.from(stageInner.querySelectorAll('.shape'));
+        if (!shapes.length && !flechas.length) {
+            alert('No hay nada que exportar.');
+            return;
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+        function expandBBox(x, y, w, h) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + w);
+            maxY = Math.max(maxY, y + h);
+        }
+
+        shapes.forEach(el => {
+            const r = worldRect(el);
+            expandBBox(r.x, r.y, r.width, r.height);
+        });
+
+        flechas.forEach(f => {
+            const pts = getConnectionPoints(f.formaInicio, f.formaFin);
+            expandBBox(pts.startX, pts.startY, 0, 0);
+            expandBBox(pts.endX, pts.endY, 0, 0);
+            if (f.estilo === 'ortho') {
+                expandBBox(pts.endX, pts.startY, 0, 0);
+            }
+        });
+
+        if (minX === Infinity) {
+            alert('No hay nada que exportar.');
+            return;
+        }
+
+        const width = (maxX - minX) + 2 * EXPORT_PADDING;
+        const height = (maxY - minY) + 2 * EXPORT_PADDING;
+
+        const svgParts = [];
+        svgParts.push(
+            `<svg xmlns="http://www.w3.org/2000/svg" ` +
+            `width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
+        );
+
+        svgParts.push(`
+  <defs>
+    <style>
+      text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 12px; fill: #111827; }
+      .shape-rect { fill: #ffffff; stroke: #9ca3af; stroke-width: 1; }
+      .shape-entity { fill: #ffffff; stroke: #111827; stroke-width: 2; }
+      .shape-circle { fill: #ffffff; stroke: #9ca3af; stroke-width: 1; }
+      .shape-pill { fill: #ffffff; stroke: #9ca3af; stroke-width: 1; }
+      .shape-db { fill: #ffffff; stroke: #9ca3af; stroke-width: 1; }
+      .conn { stroke: #111827; stroke-width: 2; fill: none; }
+    </style>
+    <marker id="arrow-end" markerWidth="10" markerHeight="7" refX="10" refY="3.5"
+            orient="auto" markerUnits="strokeWidth">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#111827"/>
+    </marker>
+    <marker id="arrow-start" markerWidth="10" markerHeight="7" refX="0" refY="3.5"
+            orient="auto" markerUnits="strokeWidth">
+      <polygon points="10 0, 0 3.5, 10 7" fill="#111827"/>
+    </marker>
+  </defs>
+        `);
+
+        function toSvgCoords(x, y) {
+            return {
+                x: x - minX + EXPORT_PADDING,
+                y: y - minY + EXPORT_PADDING
+            };
+        }
+
+        function escapeXml(str) {
+            return str.replace(/[<>&"']/g, c => {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '"': return '&quot;';
+                    case "'": return '&apos;';
+                    default: return c;
+                }
+            });
+        }
+
+        // Formas
+        shapes.forEach(el => {
+            const tipo = Array.from(el.classList)
+                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity'].includes(cls));
+            const r = worldRect(el);
+            const pos = toSvgCoords(r.x, r.y);
+            const x = pos.x;
+            const y = pos.y;
+            const w = r.width;
+            const h = r.height;
+
+            if (tipo === 'rectangle' || tipo === 'pill') {
+                const rx = (tipo === 'pill') ? h / 2 : 4;
+                svgParts.push(
+                    `<rect class="shape-rect" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ry="${rx}" />`
+                );
+
+                const text = (el.textContent || '').trim();
+                if (text) {
+                    svgParts.push(
+                        `<text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle">${escapeXml(text)}</text>`
+                    );
+                }
+            } else if (tipo === 'circle') {
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                svgParts.push(
+                    `<ellipse class="shape-circle" cx="${cx}" cy="${cy}" rx="${w / 2}" ry="${h / 2}" />`
+                );
+                const text = (el.textContent || '').trim();
+                if (text) {
+                    svgParts.push(
+                        `<text x="${cx}" y="${cy + 4}" text-anchor="middle">${escapeXml(text)}</text>`
+                    );
+                }
+            } else if (tipo === 'db') {
+                const topH = Math.min(18, h / 4);
+                svgParts.push(
+                    `<rect class="shape-db" x="${x}" y="${y + topH / 2}" width="${w}" height="${h - topH}" />`
+                );
+                svgParts.push(
+                    `<ellipse class="shape-db" cx="${x + w / 2}" cy="${y + topH / 2}" rx="${w / 2}" ry="${topH / 2}" />`
+                );
+                svgParts.push(
+                    `<ellipse class="shape-db" cx="${x + w / 2}" cy="${y + h}" rx="${w / 2}" ry="${topH / 2}" />`
+                );
+                const text = (el.textContent || '').trim();
+                if (text) {
+                    svgParts.push(
+                        `<text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle">${escapeXml(text)}</text>`
+                    );
+                }
+            } else if (tipo === 'entity') {
+                svgParts.push(
+                    `<rect class="shape-entity" x="${x}" y="${y}" width="${w}" height="${h}" />`
+                );
+                const header = el.querySelector('.entity-header');
+                if (header) {
+                    const hr = worldRect(header);
+                    const hPos = toSvgCoords(hr.x, hr.y);
+                    svgParts.push(
+                        `<line x1="${x}" y1="${hPos.y + hr.height}" x2="${x + w}" y2="${hPos.y + hr.height}" ` +
+                        `stroke="#e5e7eb" stroke-width="1"/>`
+                    );
+                    const hText = (header.textContent || '').trim();
+                    if (hText) {
+                        svgParts.push(
+                            `<text x="${x + w / 2}" y="${hPos.y + hr.height / 2 + 4}" text-anchor="middle">${escapeXml(hText)}</text>`
+                        );
+                    }
+                }
+                el.querySelectorAll('.entity-property .property-name').forEach(nameEl => {
+                    const pr = worldRect(nameEl);
+                    const pPos = toSvgCoords(pr.x, pr.y);
+                    const pText = (nameEl.textContent || '').trim();
+                    if (pText) {
+                        svgParts.push(
+                            `<text x="${pPos.x + 4}" y="${pPos.y + pr.height / 2 + 4}">${escapeXml(pText)}</text>`
+                        );
+                    }
+                });
+            }
+        });
+
+        // Conexiones
+        flechas.forEach(f => {
+            const pts = getConnectionPoints(f.formaInicio, f.formaFin);
+            const s = toSvgCoords(pts.startX, pts.startY);
+            const e = toSvgCoords(pts.endX, pts.endY);
+
+            let d;
+            if (f.estilo === 'ortho') {
+                const elbow = toSvgCoords(pts.endX, pts.startY);
+                d = `M ${s.x} ${s.y} H ${elbow.x} V ${e.y}`;
+            } else {
+                d = `M ${s.x} ${s.y} L ${e.x} ${e.y}`;
+            }
+
+            const markers =
+                f.tipo === 'doble'
+                    ? 'marker-start="url(#arrow-start)" marker-end="url(#arrow-end)"'
+                    : 'marker-end="url(#arrow-end)"';
+
+            svgParts.push(
+                `<path class="conn" d="${d}" ${markers} />`
+            );
+        });
+
+        svgParts.push('</svg>');
+        const svgContent = svgParts.join('\n');
+        descargarBlob(svgContent, 'diagrama.svg', 'image/svg+xml');
+    });
+
+    /* ===== Exportar HTML/CSS estático ===== */
+
+    exportHtmlBtn.addEventListener('click', () => {
+        const shapes = Array.from(stageInner.querySelectorAll('.shape'));
+        if (!shapes.length && !flechas.length) {
+            alert('No hay nada que exportar.');
+            return;
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+        function expandBBox(x, y, w, h) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + w);
+            maxY = Math.max(maxY, y + h);
+        }
+
+        shapes.forEach(el => {
+            const r = worldRect(el);
+            expandBBox(r.x, r.y, r.width, r.height);
+        });
+
+        flechas.forEach(f => {
+            const pts = getConnectionPoints(f.formaInicio, f.formaFin);
+            expandBBox(pts.startX, pts.startY, 0, 0);
+            expandBBox(pts.endX, pts.endY, 0, 0);
+            if (f.estilo === 'ortho') {
+                expandBBox(pts.endX, pts.startY, 0, 0);
+            }
+        });
+
+        if (minX === Infinity) {
+            alert('No hay nada que exportar.');
+            return;
+        }
+
+        const width = (maxX - minX) + 2 * EXPORT_PADDING;
+        const height = (maxY - minY) + 2 * EXPORT_PADDING;
+
+        function toPageCoords(x, y) {
+            return {
+                x: x - minX + EXPORT_PADDING,
+                y: y - minY + EXPORT_PADDING
+            };
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, c => {
+                switch (c) {
+                    case '&': return '&amp;';
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '"': return '&quot;';
+                    case "'": return '&#39;';
+                    default: return c;
+                }
+            });
+        }
+
+        const htmlParts = [];
+        htmlParts.push(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Diagrama exportado</title>
+<style>
+body {
+  margin: 0;
+  padding: 20px;
+  background: #f3f3f7;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.page {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 2px 4px rgba(0,0,0,.1);
+  width: ${width}px;
+  height: ${height}px;
+  overflow: visible;
+}
+
+/* formas básicas */
+.shape {
+  position: absolute;
+  min-width: 120px;
+  min-height: 40px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #9ca3af;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.shape.rectangle {
+  border-radius: 4px;
+}
+
+.shape.pill {
+  border-radius: 999px;
+}
+
+.shape.circle {
+  border-radius: 999px;
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* base de datos */
+.shape.db {
+  min-width: 120px;
+  min-height: 60px;
+  padding-top: 20px;
+  border-radius: 60px / 16px;
+  background: linear-gradient(180deg, #e5e7eb 0%, #ffffff 40%, #e5e7eb 100%);
+  position: absolute;
+  overflow: hidden;
+  text-align: center;
+}
+.shape.db::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid #9ca3af;
+  background: radial-gradient(circle at 50% 30%, #ffffff 0%, #e5e7eb 70%);
+}
+.shape.db::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(156, 163, 175, 0.6);
+  border-top: none;
+  background: radial-gradient(circle at 50% 70%, #e5e7eb 0%, #d1d5db 70%);
+}
+
+/* entidades ER */
+.shape.entity {
+  width: 220px;
+  min-height: 80px;
+  background: #ffffff;
+  border: 2px solid #111827;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.15);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  overflow: hidden;
+  padding: 0;
+}
+.entity-header {
+  background: #f3f4f6;
+  padding: 4px 8px;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
+}
+.entity-properties {
+  flex: 1;
+  padding: 4px 4px 0 4px;
+}
+.entity-property {
+  display: grid;
+  grid-template-columns: 14px 1fr 14px;
+  align-items: center;
+  column-gap: 4px;
+  padding: 2px 0;
+}
+.entity-property .property-name {
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+/* puertos */
+.port {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid #111827;
+  background: #ffffff;
+}
+.port-left { justify-self: start; }
+.port-right { justify-self: end; }
+
+/* flechas rectas */
+.arrow {
+  position: absolute;
+  height: 2px;
+  background: #111827;
+  transform-origin: 0 50%;
+}
+.arrow::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #111827;
+}
+.arrow-double::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) rotate(180deg);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #111827;
+}
+
+/* flechas ortogonales */
+.ortho-arrow {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.ortho-arrow .ortho-seg {
+  position: absolute;
+  background: #111827;
+}
+.ortho-seg.seg-horizontal { height: 2px; }
+.ortho-seg.seg-vertical { width: 2px; }
+.ortho-arrowhead {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.ortho-arrowhead.dir-right {
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #111827;
+}
+.ortho-arrowhead.dir-left {
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 8px solid #111827;
+}
+.ortho-arrowhead.dir-down {
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid #111827;
+}
+.ortho-arrowhead.dir-up {
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid #111827;
+}
+</style>
+</head>
+<body>
+<div class="page">
+`);
+
+        // Formas
+        shapes.forEach(el => {
+            const tipo = Array.from(el.classList)
+                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity'].includes(cls));
+            const r = worldRect(el);
+            const pos = toPageCoords(r.x, r.y);
+            const x = pos.x;
+            const y = pos.y;
+            const w = r.width;
+            const h = r.height;
+
+            if (tipo === 'entity') {
+                const header = el.querySelector('.entity-header');
+                const entityName = header ? escapeHtml((header.textContent || '').trim()) : 'Entidad';
+
+                htmlParts.push(
+`<div class="shape entity" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">
+  <div class="entity-header">${entityName}</div>
+  <div class="entity-properties">`
+                );
+
+                el.querySelectorAll('.entity-property').forEach(propEl => {
+                    const nameEl = propEl.querySelector('.property-name');
+                    const pText = escapeHtml((nameEl ? nameEl.textContent : 'atributo') || '');
+                    htmlParts.push(
+`    <div class="entity-property">
+      <div class="port port-left"></div>
+      <div class="property-name">${pText}</div>
+      <div class="port port-right"></div>
+    </div>`
+                    );
+                });
+
+                htmlParts.push(
+`  </div>
+</div>`
+                );
+            } else {
+                const text = escapeHtml((el.textContent || '').trim());
+                htmlParts.push(
+`<div class="shape ${tipo}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;">${text}</div>`
+                );
+            }
+        });
+
+        // Flechas
+        flechas.forEach(f => {
+            const pts = getConnectionPoints(f.formaInicio, f.formaFin);
+            const s = toPageCoords(pts.startX, pts.startY);
+            const e = toPageCoords(pts.endX, pts.endY);
+            const dx = e.x - s.x;
+            const dy = e.y - s.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+
+            if (f.estilo === 'straight') {
+                const angle = Math.atan2(dy, dx);
+                const classes = ['arrow'];
+                if (f.tipo === 'doble') classes.push('arrow-double');
+                htmlParts.push(
+`<div class="${classes.join(' ')}" style="left:${s.x}px;top:${s.y}px;width:${length}px;transform:rotate(${angle}rad);"></div>`
+                );
+            } else {
+                const elbow = toPageCoords(pts.endX, pts.startY);
+                const seg1Left = Math.min(s.x, elbow.x);
+                const seg1Width = Math.abs(elbow.x - s.x);
+
+                const seg2Top = Math.min(elbow.y, e.y);
+                const seg2Height = Math.abs(e.y - elbow.y);
+
+                const classes = ['ortho-arrow'];
+                if (f.tipo === 'doble') classes.push('ortho-arrow-double');
+
+                let headEndClass, headEndLeft, headEndTop;
+                if (Math.abs(e.y - elbow.y) >= Math.abs(e.x - elbow.x)) {
+                    if (e.y >= elbow.y) {
+                        headEndClass = 'dir-down';
+                        headEndLeft = e.x - 4;
+                        headEndTop = e.y;
+                    } else {
+                        headEndClass = 'dir-up';
+                        headEndLeft = e.x - 4;
+                        headEndTop = e.y - 8;
+                    }
+                } else {
+                    if (e.x >= s.x) {
+                        headEndClass = 'dir-right';
+                        headEndLeft = e.x;
+                        headEndTop = e.y - 4;
+                    } else {
+                        headEndClass = 'dir-left';
+                        headEndLeft = e.x - 8;
+                        headEndTop = e.y - 4;
+                    }
+                }
+
+                let headStartMarkup = '';
+                if (f.tipo === 'doble') {
+                    let headStartClass, hsLeft, hsTop;
+                    if (Math.abs(e.x - s.x) >= Math.abs(e.y - s.y)) {
+                        if (s.x <= elbow.x) {
+                            headStartClass = 'dir-left';
+                            hsLeft = s.x - 8;
+                            hsTop = s.y - 4;
+                        } else {
+                            headStartClass = 'dir-right';
+                            hsLeft = s.x;
+                            hsTop = s.y - 4;
+                        }
+                    } else {
+                        if (s.y <= e.y) {
+                            headStartClass = 'dir-up';
+                            hsLeft = s.x - 4;
+                            hsTop = s.y - 8;
+                        } else {
+                            headStartClass = 'dir-down';
+                            hsLeft = s.x - 4;
+                            hsTop = s.y;
+                        }
+                    }
+                    headStartMarkup =
+`  <div class="ortho-arrowhead ortho-head-start ${headStartClass}" style="left:${hsLeft}px;top:${hsTop}px;"></div>`;
+                }
+
+                htmlParts.push(
+`<div class="${classes.join(' ')}">
+  <div class="ortho-seg seg-horizontal seg1" style="left:${seg1Left}px;top:${elbow.y}px;width:${seg1Width}px;"></div>
+  <div class="ortho-seg seg-vertical seg2" style="left:${elbow.x}px;top:${seg2Top}px;height:${seg2Height}px;"></div>
+  <div class="ortho-arrowhead ortho-head-end ${headEndClass}" style="left:${headEndLeft}px;top:${headEndTop}px;"></div>${headStartMarkup}
+</div>`
+                );
+            }
+        });
+
+        htmlParts.push(`</div>
+</body>
+</html>`);
+
+        const htmlContent = htmlParts.join('\n');
+        descargarBlob(htmlContent, 'diagrama.html', 'text/html');
+    });
+
+    /* ===== Utilidades generales ===== */
+
+    function descargarBlob(contenido, nombre, tipo) {
+        const blob = new Blob([contenido], { type: tipo });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nombre;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    /* ===== Restaurar desde localStorage si existe ===== */
+
+    const savedData = loadFromLocalStorage();
+    if (savedData) {
+        rebuildFromData(savedData);
+    } else {
+        updateStageTransform();
+    }
 });
 
