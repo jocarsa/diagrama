@@ -6,9 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadInput = document.getElementById('uploadInput');
     const exportSvgBtn = document.getElementById('exportSvgBtn');
     const exportHtmlBtn = document.getElementById('exportHtmlBtn');
-    const exportSqlBtn = document.getElementById('exportSqlBtn'); // NUEVO
-    const exportPyBtn = document.getElementById('exportPyBtn');   // ← AÑADIR ESTA LÍNEA
-
+    const exportSqlBtn = document.getElementById('exportSqlBtn');
+    const exportPyBtn = document.getElementById('exportPyBtn');
     const clearBtn = document.getElementById('clearBtn');
 
     // Contenedor interno para poder aplicar transform (pan/zoom)
@@ -393,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ===== Herramientas ===== */
 
     tools.forEach(tool => {
-        // Arrastre de formas
+        // Arrastre de formas desde la barra
         tool.addEventListener('dragstart', (e) => {
             const shape = tool.dataset.shape;
             if (['rectangle', 'pill', 'circle', 'db', 'entity'].includes(shape)) {
@@ -708,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
         entidad.id = generarIdForma();
         entidad.classList.add('shape', 'entity');
         entidad.style.left = `${worldX - 110}px`;
-        entidad.style.top = `${worldY - 50}px`;   // corregido: worldY
+        entidad.style.top = `${worldX - 50}px`;
 
         entidad.innerHTML = `
             <div class="entity-header" contenteditable="true">Entidad</div>
@@ -791,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /* ===== Arrastre de formas ===== */
+    /* ===== Arrastre de formas (ratón) ===== */
 
     function hacerArrastrable(elemento) {
         let offsetX, offsetY, arrastrando = false;
@@ -832,7 +831,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /* ===== Pan del stage ===== */
+    /* ===== Pan del stage (ratón) ===== */
 
     stage.addEventListener('mousedown', (e) => {
         if (e.target.closest('.shape') || e.target.closest('.arrow') || e.target.closest('.ortho-arrow')) return;
@@ -862,7 +861,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    /* ===== Zoom con rueda ===== */
+    /* ===== Zoom con rueda (ratón) ===== */
 
     stage.addEventListener('wheel', (e) => {
         e.preventDefault();
@@ -886,6 +885,149 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateStageTransform();
         flechas.forEach(f => actualizarPosicionFlecha(f));
+    });
+
+    /* ======================================================
+       SOPORTE PANTALLAS TÁCTILES: arrastre, pan y pinch-zoom
+       ====================================================== */
+
+    let touchDraggingElement = null;
+    let touchOffsetX = 0;
+    let touchOffsetY = 0;
+
+    let isTouchPanning = false;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    let pinchStartDistance = 0;
+    let initialScale = 1;
+
+    function distanciaEntreTouches(t1, t2) {
+        const dx = t2.clientX - t1.clientX;
+        const dy = t2.clientY - t1.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // touchstart
+    stage.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            const t = e.touches[0];
+            const targetShape = t.target.closest('.shape');
+
+            const port = t.target.closest('.port');
+            const shape = t.target.closest('.shape');
+
+            if (modoFlechaActivo) {
+                const nodo = port || shape;
+                if (nodo) {
+                    nodo.click();
+                }
+                return;
+            }
+
+            // Arrastrar forma con un dedo
+            if (targetShape && !isTouchPanning) {
+                touchDraggingElement = targetShape;
+                const rect = targetShape.getBoundingClientRect();
+                touchOffsetX = t.clientX - rect.left;
+                touchOffsetY = t.clientY - rect.top;
+                e.preventDefault();
+                return;
+            }
+
+            // Pan con un dedo en espacio vacío
+            if (!shape) {
+                isTouchPanning = true;
+                lastTouchX = t.clientX;
+                lastTouchY = t.clientY;
+                return;
+            }
+        }
+
+        // Pinch (dos dedos)
+        if (e.touches.length === 2) {
+            isTouchPanning = false;
+            touchDraggingElement = null;
+
+            pinchStartDistance = distanciaEntreTouches(e.touches[0], e.touches[1]);
+            initialScale = stageScale;
+        }
+    });
+
+    // touchmove
+    stage.addEventListener('touchmove', (e) => {
+        // Arrastre de forma
+        if (touchDraggingElement && e.touches.length === 1) {
+            const t = e.touches[0];
+            const rectStage = stage.getBoundingClientRect();
+
+            const sx = t.clientX - rectStage.left;
+            const sy = t.clientY - rectStage.top;
+
+            const worldX = ((sx - stageOffsetX) / stageScale) - (touchOffsetX / stageScale);
+            const worldY = ((sy - stageOffsetY) / stageScale) - (touchOffsetY / stageScale);
+
+            touchDraggingElement.style.left = `${worldX}px`;
+            touchDraggingElement.style.top = `${worldY}px`;
+
+            if (touchDraggingElement.manejadoresMovimiento) {
+                touchDraggingElement.manejadoresMovimiento.forEach(fn => fn());
+            }
+
+            e.preventDefault();
+            return;
+        }
+
+        // Pan con un dedo
+        if (isTouchPanning && e.touches.length === 1) {
+            const t = e.touches[0];
+            const dx = t.clientX - lastTouchX;
+            const dy = t.clientY - lastTouchY;
+
+            stageOffsetX += dx;
+            stageOffsetY += dy;
+
+            lastTouchX = t.clientX;
+            lastTouchY = t.clientY;
+
+            updateStageTransform();
+            flechas.forEach(f => actualizarPosicionFlecha(f));
+            e.preventDefault();
+            return;
+        }
+
+        // Pinch zoom con dos dedos
+        if (e.touches.length === 2) {
+            const newDist = distanciaEntreTouches(e.touches[0], e.touches[1]);
+            let scaleFactor = newDist / pinchStartDistance;
+
+            let newScale = initialScale * scaleFactor;
+            newScale = Math.max(stageMinScale, Math.min(stageMaxScale, newScale));
+
+            const rectStage = stage.getBoundingClientRect();
+            const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rectStage.left;
+            const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rectStage.top;
+
+            const worldX = (cx - stageOffsetX) / stageScale;
+            const worldY = (cy - stageOffsetY) / stageScale;
+
+            stageScale = newScale;
+            stageOffsetX = cx - worldX * stageScale;
+            stageOffsetY = cy - worldY * stageScale;
+
+            updateStageTransform();
+            flechas.forEach(f => actualizarPosicionFlecha(f));
+            e.preventDefault();
+        }
+    });
+
+    // touchend
+    stage.addEventListener('touchend', () => {
+        if (touchDraggingElement) {
+            touchDraggingElement = null;
+            saveToLocalStorage();
+        }
+        isTouchPanning = false;
     });
 
     /* ===== Borrado con tecla Supr/Delete ===== */
@@ -1594,304 +1736,8 @@ body {
         }
         descargarBlob(py, 'diagrama.py', 'text/x-python');
     });
-    
+
     function generarPythonDesdeDiagrama() {
-    const entityEls = Array.from(stageInner.querySelectorAll('.shape.entity'));
-    if (!entityEls.length) return '';
-
-    // Utilidades internas
-    function sanitizeName(raw) {
-        const base = (raw || '').trim().toLowerCase()
-            .replace(/\s+/g, '_')
-            .replace(/[^a-z0-9_]/g, '');
-        return base || 'tabla';
-    }
-
-    function toClassName(raw) {
-        const base = sanitizeName(raw);
-        const parts = base.split('_').filter(Boolean);
-        const name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
-        return name || 'Tabla';
-    }
-
-    function getPropertyInfoFromNode(node) {
-        if (!node) return null;
-        const propEl = node.closest('.entity-property');
-        if (!propEl) return null;
-        const entityEl = node.closest('.shape.entity');
-        if (!entityEl) return null;
-
-        const nameEl = propEl.querySelector('.property-name');
-        const rawName = (nameEl ? nameEl.textContent : '').trim() || 'atributo';
-        const colName = sanitizeName(rawName);
-
-        return {
-            entityEl,
-            propEl,
-            rawName,
-            colName
-        };
-    }
-
-    // Recoger entidades/columnas (igual que en SQL)
-    const entities = {};
-    const tableOrder = [];
-
-    entityEls.forEach(entEl => {
-        const header = entEl.querySelector('.entity-header');
-        const rawTableName = (header ? header.textContent : '').trim() || 'entidad';
-        const tableName = sanitizeName(rawTableName);
-
-        const columns = [];
-        const pkColumns = [];
-        const foreignKeys = [];
-
-        const propRows = entEl.querySelectorAll('.entity-property .property-name');
-
-        propRows.forEach(nameEl => {
-            const rawName = (nameEl.textContent || '').trim() || 'atributo';
-            const colName = sanitizeName(rawName);
-            const lc = colName.toLowerCase();
-
-            let type = 'VARCHAR(255)';
-            let isPK = false;
-
-            if (lc === 'id') {
-                type = 'INT';
-                isPK = true;
-            } else if (lc.endsWith('_id')) {
-                type = 'INT';
-            }
-
-            columns.push({ name: colName, type, isPrimaryKey: isPK });
-
-            if (isPK) {
-                pkColumns.push(colName);
-            }
-        });
-
-        entities[entEl.id] = {
-            id: entEl.id,
-            domEl: entEl,
-            name: tableName,
-            columns,
-            pkColumns,
-            foreignKeys
-        };
-        tableOrder.push(entEl.id);
-    });
-
-    // Analizar flechas (FK + ISA) igual que en SQL
-    const isaRelations = []; // { parentId, childId }
-
-    flechas.forEach(f => {
-        const fromEntityEl = f.shapeInicio.closest('.shape.entity');
-        const toEntityEl = f.shapeFin.closest('.shape.entity');
-
-        if (!fromEntityEl || !toEntityEl || fromEntityEl === toEntityEl) return;
-        if (!entities[fromEntityEl.id] || !entities[toEntityEl.id]) return;
-
-        const fromProp = getPropertyInfoFromNode(f.formaInicio);
-        const toProp = getPropertyInfoFromNode(f.formaFin);
-
-        // Caso 1: entidad ↔ entidad sin puertos ⇒ ISA
-        if (!fromProp && !toProp) {
-            isaRelations.push({
-                parentId: fromEntityEl.id,
-                childId: toEntityEl.id
-            });
-            return;
-        }
-
-        // Caso 2: FK entre tablas usando atributos
-        let child = null;
-        let parent = null;
-        let fkColumn = null;
-
-        if (fromProp && !toProp) {
-            child = entities[fromProp.entityEl.id];
-            parent = entities[toEntityEl.id];
-            fkColumn = fromProp.colName;
-        } else if (!fromProp && toProp) {
-            child = entities[toProp.entityEl.id];
-            parent = entities[fromEntityEl.id];
-            fkColumn = toProp.colName;
-        } else if (fromProp && toProp) {
-            const fromLooksFk = fromProp.colName.toLowerCase().endsWith('_id');
-            const toLooksFk = toProp.colName.toLowerCase().endsWith('_id');
-
-            if (fromLooksFk && !toLooksFk) {
-                child = entities[fromProp.entityEl.id];
-                parent = entities[toProp.entityEl.id];
-                fkColumn = fromProp.colName;
-            } else if (!fromLooksFk && toLooksFk) {
-                child = entities[toProp.entityEl.id];
-                parent = entities[fromEntityEl.id];
-                fkColumn = toProp.colName;
-            } else {
-                child = entities[toProp.entityEl.id];
-                parent = entities[fromProp.entityEl.id];
-                fkColumn = toProp.colName;
-            }
-        }
-
-        if (!child || !parent || child === parent) return;
-
-        const parentPk = parent.pkColumns[0] || 'id';
-
-        // Asegurar PK en parent
-        let parentPkCol = parent.columns.find(c => c.name === parentPk);
-        if (!parentPkCol) {
-            parentPkCol = { name: parentPk, type: 'INT', isPrimaryKey: true };
-            parent.columns.push(parentPkCol);
-            if (!parent.pkColumns.includes(parentPk)) {
-                parent.pkColumns.push(parentPk);
-            }
-        }
-
-        // Asegurar columna FK en hijo
-        let fkColDef = child.columns.find(c => c.name === fkColumn);
-        if (!fkColDef) {
-            fkColDef = {
-                name: fkColumn,
-                type: parentPkCol.type,
-                isPrimaryKey: false
-            };
-            child.columns.push(fkColDef);
-        }
-
-        child.foreignKeys.push({
-            column: fkColumn,
-            referencesTable: parent.name,
-            referencesColumn: parentPkCol.name
-        });
-    });
-
-    // Generalización / especialización (ISA)
-    isaRelations.forEach(rel => {
-        const parent = entities[rel.parentId];
-        const child = entities[rel.childId];
-        if (!parent || !child) return;
-
-        const parentPk = parent.pkColumns[0] || 'id';
-
-        let parentPkCol = parent.columns.find(c => c.name === parentPk);
-        if (!parentPkCol) {
-            parentPkCol = { name: parentPk, type: 'INT', isPrimaryKey: true };
-            parent.columns.push(parentPkCol);
-            if (!parent.pkColumns.includes(parentPk)) {
-                parent.pkColumns.push(parentPk);
-            }
-        }
-
-        let childPkCol = child.columns.find(c => c.name === parentPk);
-        if (!childPkCol) {
-            childPkCol = {
-                name: parentPk,
-                type: parentPkCol.type,
-                isPrimaryKey: true
-            };
-            child.columns.unshift(childPkCol);
-        }
-        if (!child.pkColumns.includes(parentPk)) {
-            child.pkColumns.push(parentPk);
-        }
-
-        child.foreignKeys.push({
-            column: parentPk,
-            referencesTable: parent.name,
-            referencesColumn: parentPkCol.name
-        });
-    });
-
-    // Mapa hijo → padre (para herencia en Python)
-    const isaParentMap = {};
-    isaRelations.forEach(rel => {
-        isaParentMap[rel.childId] = rel.parentId;
-    });
-
-    // Generar código Python de clases estándar
-    const lines = [];
-    lines.push('from typing import Optional');
-    lines.push('');
-
-    tableOrder.forEach(id => {
-        const ent = entities[id];
-        if (!ent) return;
-
-        const className = toClassName(ent.name);
-        const parentId = isaParentMap[ent.id];
-        const parentEnt = parentId ? entities[parentId] : null;
-        const parentClassName = parentEnt ? toClassName(parentEnt.name) : null;
-
-        // Cabecera de la clase
-        if (parentClassName) {
-            lines.push(`class ${className}(${parentClassName}):`);
-        } else {
-            lines.push(`class ${className}:`);
-        }
-
-        if (!ent.columns.length && !ent.foreignKeys.length) {
-            lines.push('    pass');
-            lines.push('');
-            return;
-        }
-
-        // Tipos Python a partir del tipo SQL simplificado
-        function pyTypeFromSql(sqlType) {
-            const t = (sqlType || '').toUpperCase();
-            if (t.startsWith('INT')) return 'int';
-            return 'str';
-        }
-
-        // Parámetros del __init__
-        const params = ent.columns.map(col => {
-            const pyType = pyTypeFromSql(col.type);
-            return `${col.name}: Optional[${pyType}] = None`;
-        });
-
-        // __init__
-        lines.push(`    def __init__(self, ${params.join(', ')}):`);
-        ent.columns.forEach(col => {
-            lines.push(`        self.${col.name} = ${col.name}`);
-        });
-        lines.push('');
-
-        // __repr__
-        const reprInner = ent.columns
-            .map(col => `${col.name}={self.${col.name}!r}`)
-            .join(', ');
-        lines.push('    def __repr__(self):');
-        lines.push(`        return f"${className}(${reprInner})"`);
-        lines.push('');
-
-        // Comentarios de claves externas
-        if (ent.foreignKeys.length) {
-            ent.foreignKeys.forEach((fk, idx) => {
-                lines.push(
-                    `    # FK${idx + 1}: ${fk.column} -> ${fk.referencesTable}.${fk.referencesColumn}`
-                );
-            });
-            lines.push('');
-        }
-    });
-
-    return lines.join('\n');
-}
-
-
-    /* ===== Exportar SQL (ER → tablas) ===== */
-
-    exportSqlBtn.addEventListener('click', () => {
-        const sql = generarSqlDesdeDiagrama();
-        if (!sql) {
-            alert('No hay entidades ER para exportar.');
-            return;
-        }
-        descargarBlob(sql, 'diagrama.sql', 'text/sql');
-    });
-
-    function generarSqlDesdeDiagrama() {
         const entityEls = Array.from(stageInner.querySelectorAll('.shape.entity'));
         if (!entityEls.length) return '';
 
@@ -1901,6 +1747,13 @@ body {
                 .replace(/\s+/g, '_')
                 .replace(/[^a-z0-9_]/g, '');
             return base || 'tabla';
+        }
+
+        function toClassName(raw) {
+            const base = sanitizeName(raw);
+            const parts = base.split('_').filter(Boolean);
+            const name = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+            return name || 'Tabla';
         }
 
         function getPropertyInfoFromNode(node) {
@@ -1970,7 +1823,7 @@ body {
             tableOrder.push(entEl.id);
         });
 
-        // Analizar flechas (FK + generalización/especialización)
+        // Analizar flechas (FK + ISA)
         const isaRelations = []; // { parentId, childId }
 
         flechas.forEach(f => {
@@ -1983,7 +1836,7 @@ body {
             const fromProp = getPropertyInfoFromNode(f.formaInicio);
             const toProp = getPropertyInfoFromNode(f.formaFin);
 
-            // Caso 1: entidad ↔ entidad sin puertos ⇒ ISA
+            // Caso ISA: entidad ↔ entidad sin puertos
             if (!fromProp && !toProp) {
                 isaRelations.push({
                     parentId: fromEntityEl.id,
@@ -1992,7 +1845,7 @@ body {
                 return;
             }
 
-            // Caso 2: FK entre tablas usando atributos
+            // Caso FK entre atributos
             let child = null;
             let parent = null;
             let fkColumn = null;
@@ -2006,132 +1859,272 @@ body {
                 parent = entities[fromEntityEl.id];
                 fkColumn = toProp.colName;
             } else if (fromProp && toProp) {
-                const fromLooksFk = fromProp.colName.toLowerCase().endsWith('_id');
-                const toLooksFk = toProp.colName.toLowerCase().endsWith('_id');
-
-                if (fromLooksFk && !toLooksFk) {
-                    child = entities[fromProp.entityEl.id];
-                    parent = entities[toProp.entityEl.id];
-                    fkColumn = fromProp.colName;
-                } else if (!fromLooksFk && toLooksFk) {
-                    child = entities[toProp.entityEl.id];
-                    parent = entities[fromProp.entityEl.id];
-                    fkColumn = toProp.colName;
-                } else {
-                    child = entities[toProp.entityEl.id];
-                    parent = entities[fromProp.entityEl.id];
-                    fkColumn = toProp.colName;
-                }
+                child = entities[fromProp.entityEl.id];
+                parent = entities[toProp.entityEl.id];
+                fkColumn = fromProp.colName;
             }
 
-            if (!child || !parent || child === parent) return;
-
-            const parentPk = parent.pkColumns[0] || 'id';
-
-            // Asegurar PK en parent
-            let parentPkCol = parent.columns.find(c => c.name === parentPk);
-            if (!parentPkCol) {
-                parentPkCol = { name: parentPk, type: 'INT', isPrimaryKey: true };
-                parent.columns.push(parentPkCol);
-                if (!parent.pkColumns.includes(parentPk)) {
-                    parent.pkColumns.push(parentPk);
-                }
+            if (child && parent && fkColumn) {
+                child.foreignKeys.push({
+                    column: fkColumn,
+                    referencesTable: parent.name,
+                    referencesColumn: 'id'
+                });
             }
-
-            // Asegurar columna FK en hijo
-            let fkColDef = child.columns.find(c => c.name === fkColumn);
-            if (!fkColDef) {
-                fkColDef = {
-                    name: fkColumn,
-                    type: parentPkCol.type,
-                    isPrimaryKey: false
-                };
-                child.columns.push(fkColDef);
-            }
-
-            child.foreignKeys.push({
-                column: fkColumn,
-                referencesTable: parent.name,
-                referencesColumn: parentPkCol.name
-            });
         });
 
-        // Generalización / especialización (ISA)
+        // Mapa hijo → padre (para herencia en Python)
+        const isaParentMap = {};
         isaRelations.forEach(rel => {
-            const parent = entities[rel.parentId];
-            const child = entities[rel.childId];
-            if (!parent || !child) return;
-
-            const parentPk = parent.pkColumns[0] || 'id';
-
-            let parentPkCol = parent.columns.find(c => c.name === parentPk);
-            if (!parentPkCol) {
-                parentPkCol = { name: parentPk, type: 'INT', isPrimaryKey: true };
-                parent.columns.push(parentPkCol);
-                if (!parent.pkColumns.includes(parentPk)) {
-                    parent.pkColumns.push(parentPk);
-                }
-            }
-
-            let childPkCol = child.columns.find(c => c.name === parentPk);
-            if (!childPkCol) {
-                childPkCol = {
-                    name: parentPk,
-                    type: parentPkCol.type,
-                    isPrimaryKey: true
-                };
-                child.columns.unshift(childPkCol);
-            }
-            if (!child.pkColumns.includes(parentPk)) {
-                child.pkColumns.push(parentPk);
-            }
-
-            child.foreignKeys.push({
-                column: parentPk,
-                referencesTable: parent.name,
-                referencesColumn: parentPkCol.name
-            });
+            isaParentMap[rel.childId] = rel.parentId;
         });
 
-        // Generar SQL
+        const lines = [];
+        lines.push('from typing import Optional');
+        lines.push('');
+
+        tableOrder.forEach(id => {
+            const ent = entities[id];
+            if (!ent) return;
+
+            const className = toClassName(ent.name);
+            const parentId = isaParentMap[ent.id];
+            const parentEnt = parentId ? entities[parentId] : null;
+            const parentClassName = parentEnt ? toClassName(parentEnt.name) : null;
+
+            if (parentClassName) {
+                lines.push(`class ${className}(${parentClassName}):`);
+            } else {
+                lines.push(`class ${className}:`);
+            }
+
+            if (!ent.columns.length && !ent.foreignKeys.length) {
+                lines.push('    pass');
+                lines.push('');
+                return;
+            }
+
+            function pyTypeFromSql(sqlType) {
+                const t = (sqlType || '').toUpperCase();
+                if (t.startsWith('INT')) return 'int';
+                return 'str';
+            }
+
+            const params = ent.columns.map(col => {
+                const pyType = pyTypeFromSql(col.type);
+                return `${col.name}: Optional[${pyType}] = None`;
+            });
+
+            lines.push(`    def __init__(self, ${params.join(', ')}):`);
+            ent.columns.forEach(col => {
+                lines.push(`        self.${col.name} = ${col.name}`);
+            });
+            lines.push('');
+
+            const reprInner = ent.columns
+                .map(col => `${col.name}={self.${col.name}!r}`)
+                .join(', ');
+            lines.push('    def __repr__(self):');
+            lines.push(`        return f"${className}(${reprInner})"`);
+            lines.push('');
+
+            if (ent.foreignKeys.length) {
+                ent.foreignKeys.forEach((fk, idx) => {
+                    lines.push(
+                        `    # FK${idx + 1}: ${fk.column} -> ${fk.referencesTable}.${fk.referencesColumn}`
+                    );
+                });
+                lines.push('');
+            }
+        });
+
+        return lines.join('\n');
+    }
+
+    /* ===== Exportar SQL (ER → tablas) ===== */
+
+    exportSqlBtn.addEventListener('click', () => {
+        const sql = generarSqlDesdeDiagrama();
+        if (!sql) {
+            alert('No hay entidades ER para exportar.');
+            return;
+        }
+        descargarBlob(sql, 'diagrama.sql', 'text/sql');
+    });
+
+    function generarSqlDesdeDiagrama() {
+        const entityEls = Array.from(stageInner.querySelectorAll('.shape.entity'));
+        if (!entityEls.length) return '';
+
+        function sanitizeName(raw) {
+            const base = (raw || '').trim().toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[^a-z0-9_]/g, '');
+            return base || 'tabla';
+        }
+
+        function getPropertyInfoFromNode(node) {
+            if (!node) return null;
+            const propEl = node.closest('.entity-property');
+            if (!propEl) return null;
+            const entityEl = node.closest('.shape.entity');
+            if (!entityEl) return null;
+
+            const nameEl = propEl.querySelector('.property-name');
+            const rawName = (nameEl ? nameEl.textContent : '').trim() || 'atributo';
+            const colName = sanitizeName(rawName);
+
+            return {
+                entityEl,
+                propEl,
+                rawName,
+                colName
+            };
+        }
+
+        const entities = {};
+        const tableOrder = [];
+
+        entityEls.forEach(entEl => {
+            const header = entEl.querySelector('.entity-header');
+            const rawTableName = (header ? header.textContent : '').trim() || 'entidad';
+            const tableName = sanitizeName(rawTableName);
+
+            const columns = [];
+            const pkColumns = [];
+            const foreignKeys = [];
+
+            const propRows = entEl.querySelectorAll('.entity-property .property-name');
+
+            propRows.forEach(nameEl => {
+                const rawName = (nameEl.textContent || '').trim() || 'atributo';
+                const colName = sanitizeName(rawName);
+                const lc = colName.toLowerCase();
+
+                let type = 'VARCHAR(255)';
+                let isPK = false;
+
+                if (lc === 'id') {
+                    type = 'INT';
+                    isPK = true;
+                } else if (lc.endsWith('_id')) {
+                    type = 'INT';
+                }
+
+                columns.push({ name: colName, type, isPrimaryKey: isPK });
+
+                if (isPK) {
+                    pkColumns.push(colName);
+                }
+            });
+
+            entities[entEl.id] = {
+                id: entEl.id,
+                domEl: entEl,
+                name: tableName,
+                columns,
+                pkColumns,
+                foreignKeys
+            };
+            tableOrder.push(entEl.id);
+        });
+
+        const isaRelations = [];
+
+        flechas.forEach(f => {
+            const fromEntityEl = f.shapeInicio.closest('.shape.entity');
+            const toEntityEl = f.shapeFin.closest('.shape.entity');
+
+            if (!fromEntityEl || !toEntityEl || fromEntityEl === toEntityEl) return;
+            if (!entities[fromEntityEl.id] || !entities[toEntityEl.id]) return;
+
+            const fromProp = getPropertyInfoFromNode(f.formaInicio);
+            const toProp = getPropertyInfoFromNode(f.formaFin);
+
+            if (!fromProp && !toProp) {
+                isaRelations.push({
+                    parentId: fromEntityEl.id,
+                    childId: toEntityEl.id
+                });
+                return;
+            }
+
+            let child = null;
+            let parent = null;
+            let fkColumn = null;
+
+            if (fromProp && !toProp) {
+                child = entities[fromProp.entityEl.id];
+                parent = entities[toEntityEl.id];
+                fkColumn = fromProp.colName;
+            } else if (!fromProp && toProp) {
+                child = entities[toProp.entityEl.id];
+                parent = entities[fromEntityEl.id];
+                fkColumn = toProp.colName;
+            } else if (fromProp && toProp) {
+                child = entities[fromProp.entityEl.id];
+                parent = entities[toProp.entityEl.id];
+                fkColumn = fromProp.colName;
+            }
+
+            if (child && parent && fkColumn) {
+                child.foreignKeys.push({
+                    column: fkColumn,
+                    referencesTable: parent.name,
+                    referencesColumn: 'id'
+                });
+            }
+        });
+
+        const parentMap = {};
+        isaRelations.forEach(rel => {
+            parentMap[rel.childId] = rel.parentId;
+        });
+
         const lines = [];
 
         tableOrder.forEach(id => {
             const ent = entities[id];
             if (!ent) return;
 
-            const colLines = [];
-            const constraintLines = [];
+            const parentId = parentMap[ent.id];
+            const parentEnt = parentId ? entities[parentId] : null;
+            const tableName = ent.name;
+
+            lines.push(`CREATE TABLE ${tableName} (`);
+
+            const colDefs = [];
 
             ent.columns.forEach(col => {
-                let def = `  ${col.name} ${col.type}`;
-                if (col.isPrimaryKey && ent.pkColumns.length === 1 && ent.pkColumns[0] === col.name) {
-                    def += ' PRIMARY KEY';
-                }
-                colLines.push(def);
+                colDefs.push(`  ${col.name} ${col.type}`);
             });
 
-            if (ent.pkColumns.length > 1) {
-                constraintLines.push(`  PRIMARY KEY (${ent.pkColumns.join(', ')})`);
+            if (ent.pkColumns.length) {
+                colDefs.push(`  PRIMARY KEY (${ent.pkColumns.join(', ')})`);
             }
 
             ent.foreignKeys.forEach((fk, idx) => {
-                const cname = `fk_${ent.name}_${idx + 1}`;
-                constraintLines.push(
-                    `  CONSTRAINT ${cname} FOREIGN KEY (${fk.column}) REFERENCES ${fk.referencesTable}(${fk.referencesColumn})`
+                colDefs.push(
+                    `  CONSTRAINT fk_${tableName}_${idx + 1} FOREIGN KEY (${fk.column}) REFERENCES ${fk.referencesTable}(${fk.referencesColumn})`
                 );
             });
 
-            const tableLines = colLines.concat(constraintLines);
-            lines.push(
-                `CREATE TABLE ${ent.name} (\n${tableLines.join(',\n')}\n);`
-            );
+            if (parentEnt) {
+                const parentPk = parentEnt.pkColumns[0] || 'id';
+                colDefs.push(
+                    `  CONSTRAINT fk_${tableName}_parent FOREIGN KEY (${parentPk}) REFERENCES ${parentEnt.name}(${parentPk})`
+                );
+            }
+
+            lines.push(colDefs.join(',\n'));
+            lines.push(');');
+            lines.push('');
         });
 
-        return lines.join('\n\n');
+        return lines.join('\n');
     }
 
-    /* ===== Utilidades generales ===== */
+    /* ===== Utilidad genérica de descarga ===== */
 
     function descargarBlob(contenido, nombre, tipo) {
         const blob = new Blob([contenido], { type: tipo });
@@ -2139,17 +2132,17 @@ body {
         const a = document.createElement('a');
         a.href = url;
         a.download = nombre;
+        document.body.appendChild(a);
         a.click();
+        a.remove();
         URL.revokeObjectURL(url);
     }
 
-    /* ===== Restaurar desde localStorage si existe ===== */
+    /* ===== Cargar autosave al iniciar ===== */
 
-    const savedData = loadFromLocalStorage();
-    if (savedData) {
-        rebuildFromData(savedData);
-    } else {
-        updateStageTransform();
+    const autosaved = loadFromLocalStorage();
+    if (autosaved) {
+        rebuildFromData(autosaved);
     }
 });
 
