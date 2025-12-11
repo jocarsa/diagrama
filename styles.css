@@ -74,6 +74,7 @@ body {
     font-size: 13px;
     border: 1px solid transparent;
     display: inline-block;
+    width: 200px;
 }
 
 .tool:hover {
