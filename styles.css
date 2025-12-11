@@ -15,110 +15,124 @@ html, body {
 
 body {
     display: flex;
+    flex-direction: row;
 }
 
 /* ===== TOOLBAR ===== */
 
 .toolbar {
-    width: 220px;
-    background: #1f2933;
-    color: #f9fafb;
-    padding: 12px;
+    width: 260px;
+    background: #020617;
+    color: #e5e7eb;
+    padding: 16px 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    border-right: 1px solid #111827;
+    box-shadow: 2px 0 10px rgba(15, 23, 42, 0.5);
+    position: relative;
+    z-index: 10;
 }
 
 .brand {
-    font-weight: 600;
-    margin-bottom: 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 12px;
 }
 
 .brand-main {
-    color: #22d3ee;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    font-size: 18px;
 }
 
 .brand-separator {
-    margin: 0 2px;
-    opacity: 0.6;
+    opacity: 0.5;
 }
 
 .brand-variant {
-    color: #e5e7eb;
+    font-weight: 500;
+    font-size: 15px;
+    color: #38bdf8;
 }
 
 .toolbar-section-label {
+    margin-top: 8px;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    opacity: 0.6;
-    margin-top: 8px;
-    margin-bottom: 2px;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
 }
 
 .tool {
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    background: #0f172a;
+    border-radius: 6px;
+    cursor: pointer;
     font-size: 13px;
-    padding: 4px 6px;
-    border-radius: 4px;
-    background: #111827;
     border: 1px solid transparent;
-    cursor: grab;
-    user-select: none;
-}
-
-.tool:active {
-    cursor: grabbing;
+    display: inline-block;
 }
 
 .tool:hover {
-    background: #0b1120;
-    border-color: #4b5563;
+    background: #1f2937;
+    border-color: #334155;
 }
 
 .tool.active {
-    border-color: #22d3ee;
-    background: #020617;
+    border-color: #38bdf8;
+    background: #0b1120;
 }
 
 button {
-    font-size: 12px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: 1px solid #374151;
-    background: #111827;
-    color: #f9fafb;
+    padding: 6px 10px;
+    margin-top: 4px;
+    border-radius: 6px;
+    border: none;
+    background: #0ea5e9;
+    color: white;
     cursor: pointer;
+    font-size: 13px;
 }
 
 button.secondary {
-    background: #374151;
+    background: #111827;
+    border: 1px solid #1f2937;
+    color: #e5e7eb;
 }
 
 button:hover {
-    background: #020617;
+    filter: brightness(1.08);
 }
 
-/* ===== STAGE ===== */
+/* ===== STAGE WRAPPER ===== */
 
 .stage-wrapper {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    background: radial-gradient(circle at top left, #e0f2fe 0, #f9fafb 45%, #e5e7eb 100%);
 }
 
 .stage-header {
-    padding: 10px 14px;
-    border-bottom: 1px solid #d1d5db;
-    background: #ffffff;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.5);
     display: flex;
     flex-direction: column;
+    gap: 2px;
+    background: rgba(248, 250, 252, 0.85);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 0;
+    z-index: 5;
 }
 
 .stage-title {
-    font-size: 15px;
     font-weight: 600;
+    font-size: 15px;
+    color: #0f172a;
 }
 
 .stage-subtitle {
@@ -126,22 +140,28 @@ button:hover {
     color: #6b7280;
 }
 
+/* ===== STAGE ===== */
+
 .stage {
     flex: 1;
     position: relative;
-    background: radial-gradient(circle at 0 0, #e5e7eb 0, #f3f4f6 40%, #e5e7eb 100%);
-    overflow: hidden;
-    cursor: grab;
+    overflow: auto;
+    background-image:
+        radial-gradient(circle at 0 0, rgba(148, 163, 184, 0.35) 0, transparent 55%),
+        radial-gradient(circle at 100% 0, rgba(96, 165, 250, 0.35) 0, transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(148, 163, 184, 0.35) 0, transparent 55%);
+    background-color: #e5e7eb;
 }
 
-.stage.panning {
-    cursor: grabbing;
-}
-
-/* Contenedor interno pan/zoom */
 .stage-inner {
-    position: absolute;
+    position: relative;
     transform-origin: 0 0;
+    width: 3000px;
+    height: 2000px;
+    background-image:
+        linear-gradient(to right, rgba(148,163,184,0.2) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148,163,184,0.2) 1px, transparent 1px);
+    background-size: 20px 20px;
 }
 
 /* ===== FORMAS BÁSICAS ===== */
@@ -179,6 +199,22 @@ button:hover {
     justify-content: center;
 }
 
+/* Texto libre: solo texto, sin caja */
+.shape.text {
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    cursor: move;
+}
+
+/* Resalte opcional durante la edición de texto libre */
+.shape.text[contenteditable="true"] {
+    outline: 1px dashed #9ca3af;
+}
+
 /* ===== BASE DE DATOS (CILINDRO) ===== */
 
 .shape.db {
@@ -203,150 +239,57 @@ button:hover {
     height: 18px;
     border-radius: 999px;
     border: 1px solid #9ca3af;
-    background: radial-gradient(circle at 50% 30%, #ffffff 0%, #e5e7eb 70%);
+    background: radial-gradient(circle at 50% 30%,
+            #ffffff 0,
+            #e5e7eb 45%,
+            #cbd5e1 80%,
+            #9ca3af 100%);
 }
 
 .shape.db::after {
     content: "";
     position: absolute;
-    bottom: 0;
-    left: 45px;
-    width: 17px;
+    bottom: -9px;
+    left: 48px;
+    width: 19px;
     right: 8px;
-    transform: scaleX(7);
+    transform: scaleX(6);
     height: 18px;
     border-radius: 999px;
-    border: 1px solid rgba(156, 163, 175, 0.6);
-    border-top: none;
-    /* si quieres el degradado, descomenta la siguiente línea: */
-    /* background: radial-gradient(circle at 50% 70%, #e5e7eb 0%, #d1d5db 70%); */
+    border: 1px solid #9ca3af;
+    background: radial-gradient(circle at 50% 70%,
+            #e5e7eb 0,
+            #cbd5e1 55%,
+            #94a3b8 100%);
 }
 
-/* Selección */
-
-.shape.selected,
-.arrow.selected,
-.ortho-arrow.selected {
-    box-shadow: 0 0 0 2px #22d3ee;
-    border-color: #0891b2;
-}
-
-/* ===== FLECHAS RECTAS ===== */
-
-.arrow {
-    position: absolute;
-    height: 2px;
-    background: #111827;
-    transform-origin: 0 50%;
-}
-
-.arrow::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-left: 8px solid #111827;
-}
-
-.arrow-double::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%) rotate(180deg);
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-left: 8px solid #111827;
-}
-
-/* ===== FLECHAS ORTOGONALES ===== */
-
-.ortho-arrow {
-    position: absolute;
-    left: 0;
-    top: 0;
-    pointer-events: none;
-}
-
-.ortho-arrow .ortho-seg {
-    position: absolute;
-    background: #111827;
-    pointer-events: auto;
-}
-
-.ortho-seg.seg-horizontal {
-    height: 2px;
-}
-
-.ortho-seg.seg-vertical {
-    width: 2px;
-}
-
-.ortho-arrowhead {
-    position: absolute;
-    width: 0;
-    height: 0;
-}
-
-.ortho-arrowhead.dir-right {
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-left: 8px solid #111827;
-}
-
-.ortho-arrowhead.dir-left {
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-right: 8px solid #111827;
-}
-
-.ortho-arrowhead.dir-down {
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 8px solid #111827;
-}
-
-.ortho-arrowhead.dir-up {
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-bottom: 8px solid #111827;
-}
-
-/* ===== ENTIDADES (ER) ===== */
+/* ===== ENTIDAD ER ===== */
 
 .shape.entity {
-    position: absolute;
-    width: 220px;
-    min-height: 80px;
+    min-width: 160px;
+    min-height: 60px;
+    padding: 0;
     background: #ffffff;
-    border: 2px solid #111827;
     border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,.15);
+    border: 1px solid #9ca3af;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
     display: flex;
     flex-direction: column;
-    font-size: 13px;
     overflow: hidden;
-    padding: 0;
 }
 
 .entity-header {
-    background: #f3f4f6;
-    padding: 4px 8px;
+    padding: 6px 8px;
     font-weight: 600;
-    text-align: center;
     border-bottom: 1px solid #e5e7eb;
-    outline: none;
+    background: #f9fafb;
     cursor: text;
+    font-size: 13px;
 }
 
 .entity-properties {
-    flex: 1;
     padding: 4px 4px 0 4px;
 }
-
 .entity-property {
     display: grid;
     grid-template-columns: 14px 1fr 14px;
@@ -354,42 +297,26 @@ button:hover {
     column-gap: 4px;
     padding: 2px 0;
 }
-
 .entity-property .property-name {
     padding: 2px 4px;
     border-radius: 3px;
-    outline: none;
-    cursor: text;
 }
 
-.entity-property .property-name:focus {
-    box-shadow: 0 0 0 1px #22d3ee;
-}
-
-/* Puertos de conexión */
+/* puertos */
 
 .port {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    border: 1px solid #111827;
-    background: #ffffff;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 1px solid #6b7280;
+    background: #f9fafb;
     cursor: crosshair;
+    justify-self: center;
 }
 
-.port-left {
-    justify-self: start;
+.port:hover {
+    background: #e5e7eb;
 }
-
-.port-right {
-    justify-self: end;
-}
-
-.port.selected {
-    background: #22d3ee;
-}
-
-/* Botón añadir atributo */
 
 .entity-add-prop {
     border: none;
@@ -402,5 +329,96 @@ button:hover {
 
 .entity-add-prop:hover {
     background: #e5e7eb;
+}
+
+/* Selección */
+
+.shape.selected,
+.arrow.selected,
+.ortho-arrow.selected {
+    box-shadow: 0 0 0 2px #22d3ee;
+    border-color: #0891b2;
+}
+
+/* ===== FLECHAS (ESTILO RECTO) ===== */
+
+.arrow {
+    position: absolute;
+    height: 2px;
+    background: #111827;
+    transform-origin: 0 50%;
+}
+
+.arrow::after {
+    content: "";
+    position: absolute;
+    right: -1px;
+    top: 50%;
+    width: 0;
+    height: 0;
+    border-left: 8px solid #111827;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    transform: translateY(-50%);
+}
+
+.arrow-double::before {
+    content: "";
+    position: absolute;
+    left: -7px;
+    top: 50%;
+    width: 0;
+    height: 0;
+    border-right: 8px solid #111827;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    transform: translateY(-50%);
+}
+
+/* ===== FLECHAS ORTOGONALES ===== */
+
+.ortho-arrow {
+    position: absolute;
+    pointer-events: none;
+}
+
+.ortho-arrow .segment {
+    position: absolute;
+    background: #111827;
+}
+
+.ortho-arrow.horizontal .segment {
+    height: 2px;
+}
+
+.ortho-arrow.vertical .segment {
+    width: 2px;
+}
+
+.ortho-arrowhead {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.ortho-arrowhead.dir-right {
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #111827;
+}
+.ortho-arrowhead.dir-left {
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 8px solid #111827;
+}
+.ortho-arrowhead.dir-down {
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid #111827;
+}
+.ortho-arrowhead.dir-up {
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid #111827;
 }
 

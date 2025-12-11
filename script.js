@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formas = [];
         stageInner.querySelectorAll('.shape').forEach(el => {
             const tipo = Array.from(el.classList)
-                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity'].includes(cls));
+                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity', 'text'].includes(cls));
 
             const forma = {
                 id: el.id,
@@ -395,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Arrastre de formas desde la barra
         tool.addEventListener('dragstart', (e) => {
             const shape = tool.dataset.shape;
-            if (['rectangle', 'pill', 'circle', 'db', 'entity'].includes(shape)) {
+            if (['rectangle', 'pill', 'circle', 'db', 'entity', 'text'].includes(shape)) {
                 e.dataTransfer.setData('shape', shape);
             }
         });
@@ -694,7 +694,13 @@ document.addEventListener('DOMContentLoaded', () => {
         forma.style.left = `${worldX - 70}px`;
         forma.style.top = `${worldY - 35}px`;
         forma.contentEditable = 'false';
-        forma.textContent = (tipoForma === 'db') ? 'Base de datos' : '';
+        if (tipoForma === 'db') {
+            forma.textContent = 'Base de datos';
+        } else if (tipoForma === 'text') {
+            forma.textContent = 'Texto';
+        } else {
+            forma.textContent = '';
+        }
 
         stageInner.appendChild(forma);
         hacerArrastrable(forma);
@@ -1206,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Formas
         shapes.forEach(el => {
             const tipo = Array.from(el.classList)
-                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity'].includes(cls));
+                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity', 'text'].includes(cls));
             const r = worldRect(el);
             const pos = toSvgCoords(r.x, r.y);
             const x = pos.x;
@@ -1284,6 +1290,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         );
                     }
                 });
+            } else if (tipo === 'text') {
+                const text = (el.textContent || '').trim();
+                if (text) {
+                    svgParts.push(
+                        `<text x="${x}" y="${y + 14}">${escapeXml(text)}</text>`
+                    );
+                }
             }
         });
 
@@ -1429,6 +1442,16 @@ body {
   height: 80px;
   padding: 0;
   justify-content: center;
+}
+
+/* texto libre */
+.shape.text {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  min-width: 20px;
+  min-height: 20px;
 }
 
 /* base de datos */
@@ -1588,7 +1611,7 @@ body {
         // Formas
         shapes.forEach(el => {
             const tipo = Array.from(el.classList)
-                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity'].includes(cls));
+                .find(cls => ['rectangle', 'pill', 'circle', 'db', 'entity', 'text'].includes(cls));
             const r = worldRect(el);
             const pos = toPageCoords(r.x, r.y);
             const x = pos.x;
